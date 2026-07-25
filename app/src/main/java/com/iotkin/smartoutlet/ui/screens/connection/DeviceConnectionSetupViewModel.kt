@@ -8,6 +8,9 @@ import com.iotkin.smartoutlet.data.model.DeviceAddressValidator
 import com.iotkin.smartoutlet.data.network.DeviceStatusResult
 import com.iotkin.smartoutlet.data.network.SmartOutletNetworkFactory
 import com.iotkin.smartoutlet.data.settings.DeviceSettingsStore
+import com.iotkin.smartoutlet.discovery.AndroidNsdDiscoveryService
+import com.iotkin.smartoutlet.discovery.DiscoveredSmartOutlet
+import com.iotkin.smartoutlet.discovery.SmartOutletDiscoveryCoordinator
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -18,7 +21,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 sealed interface DeviceConnectionSetupEvent {
-    data object DeviceSaved : DeviceConnectionSetupEvent
+    data object DeviceSaved :
+        DeviceConnectionSetupEvent
 }
 
 class DeviceConnectionSetupViewModel(
@@ -30,6 +34,14 @@ class DeviceConnectionSetupViewModel(
 
     private val settingsStore =
         DeviceSettingsStore(application)
+
+    private val discoveryCoordinator =
+        SmartOutletDiscoveryCoordinator(
+            discoveryService =
+                AndroidNsdDiscoveryService(application),
+            networkFactory = networkFactory,
+            scope = viewModelScope
+        )
 
     private val _uiState = MutableStateFlow(
         DeviceConnectionSetupUiState()
@@ -44,7 +56,54 @@ class DeviceConnectionSetupViewModel(
     val events: SharedFlow<DeviceConnectionSetupEvent> =
         _events.asSharedFlow()
 
-    fun onIpAddressChange(value: String) {
+    init {
+        viewModelScope.launch {
+            discoveryCoordinator.state.collect {
+                    discoveryState ->
+
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        discovery = discoveryState
+                    )
+                }
+            }
+        }
+    }
+
+    fun startDiscovery() {
+        discoveryCoordinator.start()
+    }
+
+    fun refreshDiscovery() {
+        discoveryCoordinator.refresh()
+    }
+
+    fun stopDiscovery() {
+        discoveryCoordinator.stop()
+    }
+
+    fun selectDiscoveredDevice(
+        device: DiscoveredSmartOutlet
+    ) {
+        _uiState.update { currentState ->
+            currentState.copy(
+                ipAddress = device.address.host,
+                port = device.address.port.toString(),
+                ipError = null,
+                portError = null,
+                isDeviceVerified = true,
+                verifiedAddress = device.address,
+                connectionIssue = null,
+                connectionMessage =
+                    "${device.serviceName} was found and verified.",
+                saveError = null
+            )
+        }
+    }
+
+    fun onIpAddressChange(
+        value: String
+    ) {
         _uiState.update { currentState ->
             currentState.copy(
                 ipAddress = value,
@@ -58,7 +117,9 @@ class DeviceConnectionSetupViewModel(
         }
     }
 
-    fun onPortChange(value: String) {
+    fun onPortChange(
+        value: String
+    ) {
         _uiState.update { currentState ->
             currentState.copy(
                 port = value,
@@ -203,7 +264,9 @@ class DeviceConnectionSetupViewModel(
 
         viewModelScope.launch {
             try {
-                settingsStore.saveDeviceAddress(address)
+                settingsStore.saveDeviceAddress(
+                    address
+                )
 
                 _uiState.update { state ->
                     state.copy(
@@ -211,6 +274,8 @@ class DeviceConnectionSetupViewModel(
                         saveError = null
                     )
                 }
+
+                discoveryCoordinator.stop()
 
                 _events.emit(
                     DeviceConnectionSetupEvent.DeviceSaved
@@ -227,9 +292,16 @@ class DeviceConnectionSetupViewModel(
         }
     }
 
-    private fun DeviceConnectionSetupUiState.connectionFailure(
+    override fun onCleared() {
+        discoveryCoordinator.stop()
+        super.onCleared()
+    }
+
+    private fun DeviceConnectionSetupUiState
+            .connectionFailure(
         message: String
     ): DeviceConnectionSetupUiState {
+
         return copy(
             isTestingConnection = false,
             isDeviceVerified = false,

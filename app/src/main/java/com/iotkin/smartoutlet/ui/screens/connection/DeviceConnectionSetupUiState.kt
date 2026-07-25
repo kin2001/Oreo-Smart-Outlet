@@ -1,6 +1,7 @@
 package com.iotkin.smartoutlet.ui.screens.connection
 
 import com.iotkin.smartoutlet.data.model.DeviceAddress
+import com.iotkin.smartoutlet.discovery.DeviceDiscoveryUiState
 
 enum class ConnectionIssueType {
     TIMEOUT,
@@ -10,7 +11,8 @@ enum class ConnectionIssueType {
 
 data class DeviceConnectionSetupUiState(
     val ipAddress: String = "",
-    val port: String = DeviceAddress.DEFAULT_API_PORT.toString(),
+    val port: String =
+        DeviceAddress.DEFAULT_API_PORT.toString(),
     val ipError: String? = null,
     val portError: String? = null,
     val isTestingConnection: Boolean = false,
@@ -19,5 +21,7 @@ data class DeviceConnectionSetupUiState(
     val verifiedAddress: DeviceAddress? = null,
     val connectionIssue: ConnectionIssueType? = null,
     val connectionMessage: String? = null,
-    val saveError: String? = null
+    val saveError: String? = null,
+    val discovery: DeviceDiscoveryUiState =
+        DeviceDiscoveryUiState()
 )

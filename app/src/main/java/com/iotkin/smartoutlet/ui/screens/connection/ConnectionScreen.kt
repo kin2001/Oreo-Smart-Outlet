@@ -32,12 +32,19 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.LaunchedEffect
+import com.iotkin.smartoutlet.discovery.DiscoveredSmartOutlet
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @Composable
 fun DeviceConnectionSetupScreen(
     state: DeviceConnectionSetupUiState,
     onIpAddressChange: (String) -> Unit,
     onPortChange: (String) -> Unit,
+    onRefreshDiscovery: () -> Unit,
+    onDiscoveredDeviceSelected: (DiscoveredSmartOutlet) -> Unit,
     onTestConnection: () -> Unit,
     onSaveDevice: () -> Unit,
     modifier: Modifier = Modifier
@@ -81,7 +88,17 @@ fun DeviceConnectionSetupScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            DeviceDiscoverySection(
+                discoveryState = state.discovery,
+                onRefresh = onRefreshDiscovery,
+                onDeviceSelected = onDiscoveredDeviceSelected
+            )
 
+            Text(
+                text = "Or enter the address manually",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             ConnectionAddressForm(
                 state = state,
                 onIpAddressChange = onIpAddressChange,
@@ -417,6 +434,40 @@ fun DeviceConnectionSetupRoute(
     setupViewModel: DeviceConnectionSetupViewModel = viewModel()
 ) {
     val state by setupViewModel.uiState.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(
+        lifecycleOwner,
+        setupViewModel
+    ) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> {
+                    setupViewModel.startDiscovery()
+                }
+
+                Lifecycle.Event.ON_STOP -> {
+                    setupViewModel.stopDiscovery()
+                }
+
+                else -> Unit
+            }
+        }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+
+        if (
+            lifecycleOwner.lifecycle.currentState
+                .isAtLeast(Lifecycle.State.STARTED)
+        ) {
+            setupViewModel.startDiscovery()
+        }
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            setupViewModel.stopDiscovery()
+        }
+    }
 
     LaunchedEffect(setupViewModel) {
         setupViewModel.events.collect { event ->
@@ -432,8 +483,14 @@ fun DeviceConnectionSetupRoute(
         state = state,
         onIpAddressChange = setupViewModel::onIpAddressChange,
         onPortChange = setupViewModel::onPortChange,
-        onTestConnection = setupViewModel::testConnection,
-        onSaveDevice = setupViewModel::saveDevice,
+        onRefreshDiscovery =
+            setupViewModel::refreshDiscovery,
+        onDiscoveredDeviceSelected =
+            setupViewModel::selectDiscoveredDevice,
+        onTestConnection =
+            setupViewModel::testConnection,
+        onSaveDevice =
+            setupViewModel::saveDevice,
         modifier = modifier
     )
 }
@@ -455,8 +512,11 @@ private fun DeviceConnectionSetupLightPreview() {
             ),
             onIpAddressChange = {},
             onPortChange = {},
+            onRefreshDiscovery = {},
+            onDiscoveredDeviceSelected = {},
             onTestConnection = {},
             onSaveDevice = {}
+
         )
     }
 }
@@ -481,6 +541,8 @@ private fun VerifiedDeviceDarkPreview() {
             ),
             onIpAddressChange = {},
             onPortChange = {},
+            onRefreshDiscovery = {},
+            onDiscoveredDeviceSelected = {},
             onTestConnection = {},
             onSaveDevice = {}
         )
@@ -507,6 +569,8 @@ private fun DeviceConnectionErrorsLightPreview() {
             ),
             onIpAddressChange = {},
             onPortChange = {},
+            onRefreshDiscovery = {},
+            onDiscoveredDeviceSelected = {},
             onTestConnection = {},
             onSaveDevice = {}
         )
@@ -533,6 +597,8 @@ private fun ConnectionTimeoutLightPreview() {
             ),
             onIpAddressChange = {},
             onPortChange = {},
+            onRefreshDiscovery = {},
+            onDiscoveredDeviceSelected = {},
             onTestConnection = {},
             onSaveDevice = {}
         )
@@ -562,6 +628,8 @@ private fun InvalidDeviceDarkPreview() {
             ),
             onIpAddressChange = {},
             onPortChange = {},
+            onRefreshDiscovery = {},
+            onDiscoveredDeviceSelected = {},
             onTestConnection = {},
             onSaveDevice = {}
         )
