@@ -3,16 +3,21 @@ package com.iotkin.smartoutlet.ui.screens.diagnostics
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.iotkin.smartoutlet.data.model.RelayNumber
 import com.iotkin.smartoutlet.data.network.DeviceActionResult
 import com.iotkin.smartoutlet.data.network.SmartOutletNetworkFactory
+import com.iotkin.smartoutlet.data.repository.DeviceConnectionState
 import com.iotkin.smartoutlet.data.repository.DeviceStatusRepositoryState
+import com.iotkin.smartoutlet.data.repository.RelayCommandResult
 import com.iotkin.smartoutlet.data.repository.SmartOutletRepository
 import com.iotkin.smartoutlet.data.repository.StatusRefreshOutcome
 import com.iotkin.smartoutlet.data.repository.StatusRefreshReason
 import com.iotkin.smartoutlet.data.settings.DeviceSettingsStore
+import com.iotkin.smartoutlet.ui.screens.home.RelayControlUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -47,10 +52,29 @@ class DiagnosticsViewModel(
             scope = viewModelScope
         )
 
+    /**
+     * Shared live device status.
+     *
+     * Home, Relay Details, and Diagnostics will read the
+     * same repository state and polling loop.
+     */
+    val statusState:
+            StateFlow<DeviceStatusRepositoryState> =
+        repository.statusState
+
     private val actionState =
         MutableStateFlow(
             DiagnosticsActionState()
         )
+
+    private val _relayControlState =
+        MutableStateFlow(
+            RelayControlUiState()
+        )
+
+    val relayControlState:
+            StateFlow<RelayControlUiState> =
+        _relayControlState.asStateFlow()
 
     val uiState: StateFlow<DiagnosticsUiState> =
         combine(
@@ -60,9 +84,11 @@ class DiagnosticsViewModel(
             DiagnosticsUiState(
                 repositoryState = repositoryState,
                 isRunningStatusAction =
-                    currentActionState.isRunningStatusAction,
+                    currentActionState
+                        .isRunningStatusAction,
                 isRequestingTimeSync =
-                    currentActionState.isRequestingTimeSync,
+                    currentActionState
+                        .isRequestingTimeSync,
                 actionMessage =
                     currentActionState.message,
                 actionError =
@@ -105,14 +131,18 @@ class DiagnosticsViewModel(
     fun requestTimeSync() {
         if (
             actionState.value
-                .isRequestingTimeSync
+                .isRequestingTimeSync ||
+            _relayControlState.value
+                .isAnyRelayUpdating
         ) {
             return
         }
 
-        actionState.update {
-            DiagnosticsActionState(
-                isRequestingTimeSync = true
+        actionState.update { currentState ->
+            currentState.copy(
+                isRequestingTimeSync = true,
+                message = null,
+                error = null
             )
         }
 
@@ -120,24 +150,30 @@ class DiagnosticsViewModel(
             val result =
                 repository.requestTimeSync()
 
-            actionState.update {
+            actionState.update { currentState ->
                 when (result) {
                     DeviceActionResult.Success -> {
-                        DiagnosticsActionState(
+                        currentState.copy(
+                            isRequestingTimeSync = false,
                             message =
-                                "Philippine time synchronization requested."
+                                "Philippine time synchronization requested.",
+                            error = null
                         )
                     }
 
                     DeviceActionResult.Timeout -> {
-                        DiagnosticsActionState(
+                        currentState.copy(
+                            isRequestingTimeSync = false,
+                            message = null,
                             error =
                                 "The time synchronization request timed out."
                         )
                     }
 
                     DeviceActionResult.NoSavedDevice -> {
-                        DiagnosticsActionState(
+                        currentState.copy(
+                            isRequestingTimeSync = false,
+                            message = null,
                             error =
                                 "No smart outlet address is saved."
                         )
@@ -145,27 +181,138 @@ class DiagnosticsViewModel(
 
                     DeviceActionResult
                         .SkippedAlreadyRunning -> {
-                        DiagnosticsActionState(
+                        currentState.copy(
+                            isRequestingTimeSync = false,
+                            message = null,
                             error =
                                 "Another device action is already running."
                         )
                     }
 
                     is DeviceActionResult.HttpError -> {
-                        DiagnosticsActionState(
+                        currentState.copy(
+                            isRequestingTimeSync = false,
+                            message = null,
                             error = result.message
                         )
                     }
 
                     is DeviceActionResult
                     .InvalidResponse -> {
-                        DiagnosticsActionState(
+                        currentState.copy(
+                            isRequestingTimeSync = false,
+                            message = null,
                             error = result.message
                         )
                     }
 
                     is DeviceActionResult.NetworkError -> {
-                        DiagnosticsActionState(
+                        currentState.copy(
+                            isRequestingTimeSync = false,
+                            message = null,
+                            error = result.message
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun setRelayState(
+        relay: RelayNumber,
+        desiredState: Boolean
+    ) {
+        val currentRelayState =
+            _relayControlState.value
+
+        if (
+            currentRelayState
+                .isAnyRelayUpdating ||
+            actionState.value
+                .isRequestingTimeSync
+        ) {
+            return
+        }
+
+        val currentStatus =
+            repository.statusState.value
+
+        if (
+            currentStatus.connectionState !=
+            DeviceConnectionState.ONLINE ||
+            currentStatus.isStale
+        ) {
+            _relayControlState.update {
+                it.copy(
+                    updatingRelay = null,
+                    message = null,
+                    error =
+                        "Outlet controls are unavailable while the device is offline or reconnecting."
+                )
+            }
+
+            return
+        }
+
+        _relayControlState.update {
+            RelayControlUiState(
+                updatingRelay = relay
+            )
+        }
+
+        viewModelScope.launch {
+            val result =
+                repository.setRelayState(
+                    relay = relay,
+                    desiredState = desiredState
+                )
+
+            _relayControlState.update {
+                when (result) {
+                    is RelayCommandResult.Success -> {
+                        RelayControlUiState(
+                            message =
+                                relaySuccessMessage(
+                                    relay =
+                                        result.relay,
+                                    state =
+                                        result.confirmedState
+                                )
+                        )
+                    }
+
+                    is RelayCommandResult
+                    .ConfirmedButRefreshFailed -> {
+                        RelayControlUiState(
+                            error =
+                                result.message
+                        )
+                    }
+
+                    RelayCommandResult.NoSavedDevice -> {
+                        RelayControlUiState(
+                            error =
+                                "No smart outlet address is saved."
+                        )
+                    }
+
+                    RelayCommandResult.DeviceUnavailable -> {
+                        RelayControlUiState(
+                            error =
+                                "Relay controls are unavailable while the device is offline or reconnecting."
+                        )
+                    }
+
+                    RelayCommandResult
+                        .SkippedAlreadyRunning -> {
+                        RelayControlUiState(
+                            error =
+                                "Another device action is already running."
+                        )
+                    }
+
+                    is RelayCommandResult.Failed -> {
+                        RelayControlUiState(
                             error = result.message
                         )
                     }
@@ -183,11 +330,23 @@ class DiagnosticsViewModel(
         }
     }
 
+    fun clearRelayFeedback() {
+        _relayControlState.update {
+            it.copy(
+                message = null,
+                error = null
+            )
+        }
+    }
+
     private fun runStatusAction(
         reason: StatusRefreshReason,
         successMessage: String
     ) {
-        if (actionState.value.isRunningStatusAction) {
+        if (
+            actionState.value
+                .isRunningStatusAction
+        ) {
             return
         }
 
@@ -245,5 +404,19 @@ class DiagnosticsViewModel(
                 }
             }
         }
+    }
+
+    private fun relaySuccessMessage(
+        relay: RelayNumber,
+        state: Boolean
+    ): String {
+        val stateText =
+            if (state) {
+                "ON"
+            } else {
+                "OFF"
+            }
+
+        return "Outlet ${relay.apiValue} is now $stateText."
     }
 }

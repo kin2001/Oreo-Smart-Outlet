@@ -18,6 +18,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import com.iotkin.smartoutlet.data.network.DeviceActionResult
+import com.iotkin.smartoutlet.data.model.RelayNumber
+import com.iotkin.smartoutlet.data.network.RelayApiResult
 
 class SmartOutletRepository(
     private val settingsStore: DeviceSettingsStore,
@@ -106,6 +108,107 @@ class SmartOutletRepository(
             }
 
             return result
+        } finally {
+            writeRequestMutex.unlock()
+        }
+    }
+
+    suspend fun setRelayState(
+        relay: RelayNumber,
+        desiredState: Boolean
+    ): RelayCommandResult {
+        if (!writeRequestMutex.tryLock()) {
+            return RelayCommandResult
+                .SkippedAlreadyRunning
+        }
+
+        try {
+            val currentState =
+                _statusState.value
+
+            if (
+                currentState.connectionState !=
+                DeviceConnectionState.ONLINE ||
+                currentState.isStale
+            ) {
+                return RelayCommandResult
+                    .DeviceUnavailable
+            }
+
+            val address =
+                resolveSavedAddress()
+                    ?: return RelayCommandResult
+                        .NoSavedDevice
+
+            val result =
+                networkFactory
+                    .createClient(address)
+                    .setRelayState(
+                        relay = relay,
+                        desiredState =
+                            desiredState
+                    )
+
+            return when (result) {
+                is RelayApiResult.Success -> {
+                    val refreshOutcome =
+                        refreshStatus(
+                            reason =
+                                StatusRefreshReason
+                                    .AFTER_ACTION
+                        )
+
+                    when (refreshOutcome) {
+                        StatusRefreshOutcome.SUCCESS -> {
+                            RelayCommandResult.Success(
+                                relay = relay,
+                                confirmedState =
+                                    result
+                                        .confirmedState
+                            )
+                        }
+
+                        else -> {
+                            RelayCommandResult
+                                .ConfirmedButRefreshFailed(
+                                    relay = relay,
+                                    confirmedState =
+                                        result
+                                            .confirmedState,
+                                    message =
+                                        _statusState.value
+                                            .errorMessage
+                                            ?: "The relay command was confirmed, but the latest status could not be loaded."
+                                )
+                        }
+                    }
+                }
+
+                RelayApiResult.Timeout -> {
+                    RelayCommandResult.Failed(
+                        message =
+                            "The relay command timed out. Its final state is unknown until status polling reconnects. The command will not be sent again automatically."
+                    )
+                }
+
+                is RelayApiResult.HttpError -> {
+                    RelayCommandResult.Failed(
+                        message = result.message
+                    )
+                }
+
+                is RelayApiResult.InvalidResponse -> {
+                    RelayCommandResult.Failed(
+                        message = result.message
+                    )
+                }
+
+                is RelayApiResult.NetworkError -> {
+                    RelayCommandResult.Failed(
+                        message = result.message
+                    )
+                }
+            }
         } finally {
             writeRequestMutex.unlock()
         }
