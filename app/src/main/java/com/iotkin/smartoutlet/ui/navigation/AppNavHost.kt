@@ -14,6 +14,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.iotkin.smartoutlet.ui.components.OreoAppScaffold
 import com.iotkin.smartoutlet.ui.screens.connection.DeviceConnectionSetupRoute
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.iotkin.smartoutlet.ui.screens.diagnostics.DiagnosticsViewModel
+import com.iotkin.smartoutlet.ui.screens.diagnostics.ForegroundStatusPollingEffect
+import com.iotkin.smartoutlet.ui.screens.diagnostics.DiagnosticsRoute
 
 private object RootRoutes {
     const val CONNECTION = "connection"
@@ -51,15 +55,31 @@ fun AppNavHost(
         composable(
             route = RootRoutes.MAIN
         ) {
-            MainAppNavHost()
+            MainAppNavHost(
+                onRunDiscoveryAgain = {
+                    navController.navigate(
+                        RootRoutes.CONNECTION
+                    ) {
+                        launchSingleTop = true
+                    }
+                }
+            )
         }
     }
 }
 
 @Composable
 private fun MainAppNavHost(
-    navController: NavHostController = rememberNavController()
+    onRunDiscoveryAgain: () -> Unit,
+    navController: NavHostController =
+        rememberNavController()
 ) {
+    val diagnosticsViewModel:
+            DiagnosticsViewModel = viewModel()
+
+    ForegroundStatusPollingEffect(
+        viewModel = diagnosticsViewModel
+    )
     OreoAppScaffold(
         navController = navController
     ) { innerPadding ->
@@ -89,8 +109,10 @@ private fun MainAppNavHost(
             composable(
                 route = AppDestination.DIAGNOSTICS.route
             ) {
-                DestinationPlaceholder(
-                    title = "Diagnostics"
+                DiagnosticsRoute(
+                    viewModel = diagnosticsViewModel,
+                    onRunDiscoveryAgain =
+                        onRunDiscoveryAgain
                 )
             }
 

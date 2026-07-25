@@ -30,13 +30,15 @@ class SmartOutletApiClient(
                 when {
                     status == null -> {
                         DeviceStatusResult.InvalidResponse(
-                            message = "The device returned an empty status response."
+                            message =
+                                "The device returned an empty status response."
                         )
                     }
 
                     !status.success -> {
                         DeviceStatusResult.InvalidResponse(
-                            message = "The device reported that the status request failed."
+                            message =
+                                "The device reported that the status request failed."
                         )
                     }
 
@@ -57,10 +59,57 @@ class SmartOutletApiClient(
             DeviceStatusResult.Timeout
         } catch (exception: SerializationException) {
             DeviceStatusResult.InvalidResponse(
-                message = "The device returned an invalid status response."
+                message =
+                    "The device returned an invalid status response."
             )
         } catch (exception: IOException) {
             DeviceStatusResult.NetworkError(
+                message = "Unable to reach the device."
+            )
+        }
+    }
+
+    suspend fun requestTimeSync(): DeviceActionResult {
+        return try {
+            val response = apiService.requestTimeSync()
+
+            if (!response.isSuccessful) {
+                DeviceActionResult.HttpError(
+                    statusCode = response.code(),
+                    message = readErrorMessage(response)
+                )
+            } else {
+                val body = response.body()
+
+                when {
+                    body == null -> {
+                        DeviceActionResult.InvalidResponse(
+                            message =
+                                "The device returned an empty time-sync response."
+                        )
+                    }
+
+                    !body.success || !body.requested -> {
+                        DeviceActionResult.InvalidResponse(
+                            message =
+                                "The device did not accept the time synchronization request."
+                        )
+                    }
+
+                    else -> {
+                        DeviceActionResult.Success
+                    }
+                }
+            }
+        } catch (exception: SocketTimeoutException) {
+            DeviceActionResult.Timeout
+        } catch (exception: SerializationException) {
+            DeviceActionResult.InvalidResponse(
+                message =
+                    "The device returned an invalid time-sync response."
+            )
+        } catch (exception: IOException) {
+            DeviceActionResult.NetworkError(
                 message = "Unable to reach the device."
             )
         }
@@ -90,7 +139,9 @@ class SmartOutletApiClient(
                 string = responseText
             ).error
         }.getOrElse {
-            responseText.take(MAX_ERROR_MESSAGE_LENGTH)
+            responseText.take(
+                MAX_ERROR_MESSAGE_LENGTH
+            )
         }
     }
 
