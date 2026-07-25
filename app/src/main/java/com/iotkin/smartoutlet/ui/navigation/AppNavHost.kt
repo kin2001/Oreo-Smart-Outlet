@@ -13,9 +13,51 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.iotkin.smartoutlet.ui.components.OreoAppScaffold
+import com.iotkin.smartoutlet.ui.screens.connection.DeviceConnectionSetupRoute
+
+private object RootRoutes {
+    const val CONNECTION = "connection"
+    const val MAIN = "main"
+}
 
 @Composable
 fun AppNavHost(
+    navController: NavHostController = rememberNavController()
+) {
+    NavHost(
+        navController = navController,
+        startDestination = RootRoutes.CONNECTION
+    ) {
+        composable(
+            route = RootRoutes.CONNECTION
+        ) {
+            DeviceConnectionSetupRoute(
+                onDeviceSaved = {
+                    navController.navigate(
+                        RootRoutes.MAIN
+                    ) {
+                        popUpTo(
+                            RootRoutes.CONNECTION
+                        ) {
+                            inclusive = true
+                        }
+
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(
+            route = RootRoutes.MAIN
+        ) {
+            MainAppNavHost()
+        }
+    }
+}
+
+@Composable
+private fun MainAppNavHost(
     navController: NavHostController = rememberNavController()
 ) {
     OreoAppScaffold(
