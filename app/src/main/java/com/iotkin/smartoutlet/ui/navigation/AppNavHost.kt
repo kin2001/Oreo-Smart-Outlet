@@ -23,6 +23,8 @@ import com.iotkin.smartoutlet.ui.screens.diagnostics.DiagnosticsViewModel
 import com.iotkin.smartoutlet.ui.screens.diagnostics.ForegroundStatusPollingEffect
 import com.iotkin.smartoutlet.ui.screens.home.HomeRoute
 import com.iotkin.smartoutlet.ui.screens.home.OutletDetailsRoute
+import com.iotkin.smartoutlet.ui.screens.schedule.EditScheduleRoute
+import com.iotkin.smartoutlet.ui.screens.schedule.ScheduleOverviewRoute
 
 private object RootRoutes {
     const val CONNECTION = "connection"
@@ -40,6 +42,17 @@ private object MainRoutes {
         relay: RelayNumber
     ): String {
         return "outlet/${relay.apiValue}"
+    }
+    const val SCHEDULE_OUTLET_ARGUMENT =
+        "scheduleOutletNumber"
+
+    const val EDIT_SCHEDULE =
+        "schedule/edit/{$SCHEDULE_OUTLET_ARGUMENT}"
+
+    fun editSchedule(
+        relay: RelayNumber
+    ): String {
+        return "schedule/edit/${relay.apiValue}"
     }
 }
 
@@ -135,8 +148,53 @@ private fun MainAppNavHost(
                 route =
                     AppDestination.SCHEDULE.route
             ) {
-                DestinationPlaceholder(
-                    title = "Schedule"
+                ScheduleOverviewRoute(
+                    viewModel =
+                        diagnosticsViewModel,
+                    onEditSchedule = { relay ->
+                        navController.navigate(
+                            MainRoutes.editSchedule(
+                                relay
+                            )
+                        )
+                    }
+                )
+            }
+
+            composable(
+                route =
+                    MainRoutes.EDIT_SCHEDULE,
+                arguments = listOf(
+                    navArgument(
+                        MainRoutes
+                            .SCHEDULE_OUTLET_ARGUMENT
+                    ) {
+                        type = NavType.IntType
+                    }
+                )
+            ) { backStackEntry ->
+                val relayNumber =
+                    backStackEntry.arguments
+                        ?.getInt(
+                            MainRoutes
+                                .SCHEDULE_OUTLET_ARGUMENT
+                        )
+                        ?: 1
+
+                val relay =
+                    if (relayNumber == 2) {
+                        RelayNumber.RELAY_2
+                    } else {
+                        RelayNumber.RELAY_1
+                    }
+
+                EditScheduleRoute(
+                    relay = relay,
+                    viewModel =
+                        diagnosticsViewModel,
+                    onBack = {
+                        navController.popBackStack()
+                    }
                 )
             }
 

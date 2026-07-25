@@ -8,6 +8,8 @@ import java.net.SocketTimeoutException
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import retrofit2.Response
+import com.iotkin.smartoutlet.data.model.RelayScheduleResponse
+import com.iotkin.smartoutlet.data.model.ScheduleUpdateRequest
 
 class SmartOutletApiClient(
     private val apiService: SmartOutletApiService,
@@ -271,6 +273,123 @@ class SmartOutletApiClient(
         }.getOrElse {
             responseText.take(
                 MAX_ERROR_MESSAGE_LENGTH
+            )
+        }
+    }
+
+    private fun scheduleMatches(
+        actual: RelayScheduleResponse,
+        requested: ScheduleUpdateRequest
+    ): Boolean {
+        return actual.enabled ==
+                requested.enabled &&
+                actual.onHour ==
+                requested.onHour &&
+                actual.onMinute ==
+                requested.onMinute &&
+                actual.offHour ==
+                requested.offHour &&
+                actual.offMinute ==
+                requested.offMinute
+    }
+
+    suspend fun updateSchedule(
+        relay: RelayNumber,
+        request: ScheduleUpdateRequest
+    ): ScheduleApiResult {
+        val validationError =
+            request.validationError()
+
+        if (validationError != null) {
+            return ScheduleApiResult.InvalidRequest(
+                message = validationError
+            )
+        }
+
+        return try {
+            val response =
+                when (relay) {
+                    RelayNumber.RELAY_1 -> {
+                        apiService.updateSchedule1(
+                            request = request
+                        )
+                    }
+
+                    RelayNumber.RELAY_2 -> {
+                        apiService.updateSchedule2(
+                            request = request
+                        )
+                    }
+                }
+
+            if (!response.isSuccessful) {
+                ScheduleApiResult.HttpError(
+                    statusCode = response.code(),
+                    message = readErrorMessage(
+                        response
+                    )
+                )
+            } else {
+                val body = response.body()
+
+                when {
+                    body == null -> {
+                        ScheduleApiResult.InvalidResponse(
+                            message =
+                                "The device returned an empty schedule response."
+                        )
+                    }
+
+                    !body.success -> {
+                        ScheduleApiResult.InvalidResponse(
+                            message =
+                                "The device did not confirm the schedule update."
+                        )
+                    }
+
+                    body.relay != relay.apiValue -> {
+                        ScheduleApiResult.InvalidResponse(
+                            message =
+                                "The device confirmed a different outlet schedule."
+                        )
+                    }
+
+                    !scheduleMatches(
+                        actual = body.schedule,
+                        requested = request
+                    ) -> {
+                        ScheduleApiResult.InvalidResponse(
+                            message =
+                                "The schedule returned by the device does not match the requested values."
+                        )
+                    }
+
+                    else -> {
+                        ScheduleApiResult.Success(
+                            relay = relay,
+                            confirmedSchedule =
+                                body.schedule
+                        )
+                    }
+                }
+            }
+        } catch (
+            exception: SocketTimeoutException
+        ) {
+            ScheduleApiResult.Timeout
+        } catch (
+            exception: SerializationException
+        ) {
+            ScheduleApiResult.InvalidResponse(
+                message =
+                    "The device returned an invalid schedule response."
+            )
+        } catch (
+            exception: IOException
+        ) {
+            ScheduleApiResult.NetworkError(
+                message =
+                    "Unable to reach the device."
             )
         }
     }

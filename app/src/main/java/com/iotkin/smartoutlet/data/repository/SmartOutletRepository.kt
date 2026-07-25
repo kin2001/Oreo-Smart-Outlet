@@ -20,6 +20,9 @@ import kotlinx.coroutines.sync.Mutex
 import com.iotkin.smartoutlet.data.network.DeviceActionResult
 import com.iotkin.smartoutlet.data.model.RelayNumber
 import com.iotkin.smartoutlet.data.network.RelayApiResult
+import com.iotkin.smartoutlet.data.model.ScheduleUpdateRequest
+import com.iotkin.smartoutlet.data.network.ScheduleApiResult
+import kotlinx.coroutines.cancelAndJoin
 
 class SmartOutletRepository(
     private val settingsStore: DeviceSettingsStore,
@@ -41,31 +44,31 @@ class SmartOutletRepository(
     private val writeRequestMutex = Mutex()
 
     private var pollingJob: Job? = null
+    private var pollingRestartJob: Job? = null
+
+    private var foregroundPollingRequested =
+        false
+
 
     init {
         observeSavedAddress()
     }
 
     fun startForegroundPolling() {
+        foregroundPollingRequested = true
+
         if (pollingJob?.isActive == true) {
             return
         }
 
         pollingJob = scope.launch {
-            while (isActive) {
-                refreshStatus(
-                    reason =
-                        if (
-                            _statusState.value
-                                .lastSuccessfulRefreshEpochMillis ==
-                            null
-                        ) {
-                            StatusRefreshReason.FOREGROUND_START
-                        } else {
-                            StatusRefreshReason.POLLING
-                        }
-                )
+            refreshStatus(
+                reason =
+                    StatusRefreshReason
+                        .FOREGROUND_START
+            )
 
+            while (isActive) {
                 delay(
                     pollingDelayMillis(
                         failureCount =
@@ -73,11 +76,21 @@ class SmartOutletRepository(
                                 .consecutiveFailures
                     )
                 )
+
+                refreshStatus(
+                    reason =
+                        StatusRefreshReason.POLLING
+                )
             }
         }
     }
 
     fun stopForegroundPolling() {
+        foregroundPollingRequested = false
+
+        pollingRestartJob?.cancel()
+        pollingRestartJob = null
+
         pollingJob?.cancel()
         pollingJob = null
 
@@ -88,22 +101,90 @@ class SmartOutletRepository(
         }
     }
 
-    suspend fun requestTimeSync(): DeviceActionResult {
+    fun onWifiAvailabilityChanged(
+        isAvailable: Boolean
+    ) {
+        if (isAvailable) {
+            restartForegroundPollingImmediately()
+            return
+        }
+
+        val currentState =
+            _statusState.value
+
+        if (
+            currentState.address == null ||
+            currentState.connectionState ==
+            DeviceConnectionState
+                .NO_SAVED_DEVICE
+        ) {
+            return
+        }
+
+        when (currentState.connectionState) {
+            DeviceConnectionState.ONLINE,
+            DeviceConnectionState.CONNECTING -> {
+                handleFailedStatus(
+                    message =
+                        "The phone is not connected to Wi-Fi."
+                )
+            }
+
+            DeviceConnectionState.RECONNECTING,
+            DeviceConnectionState.OFFLINE -> {
+                _statusState.update {
+                    it.copy(
+                        errorMessage =
+                            "The phone is not connected to Wi-Fi."
+                    )
+                }
+            }
+
+            DeviceConnectionState
+                .NO_SAVED_DEVICE -> Unit
+        }
+    }
+
+    suspend fun requestTimeSync():
+            DeviceActionResult {
+
         if (!writeRequestMutex.tryLock()) {
-            return DeviceActionResult.SkippedAlreadyRunning
+            return DeviceActionResult
+                .SkippedAlreadyRunning
         }
 
         try {
-            val address = resolveSavedAddress()
-                ?: return DeviceActionResult.NoSavedDevice
+            val address =
+                resolveSavedAddress()
+                    ?: return DeviceActionResult
+                        .NoSavedDevice
 
-            val result = networkFactory
-                .createClient(address)
-                .requestTimeSync()
+            val currentState =
+                _statusState.value
 
-            if (result is DeviceActionResult.Success) {
+            if (
+                currentState.connectionState !=
+                DeviceConnectionState.ONLINE ||
+                currentState.isStale
+            ) {
+                return DeviceActionResult.NetworkError(
+                    message =
+                        "Time synchronization is unavailable while the device is offline, reconnecting, or showing stale data."
+                )
+            }
+
+            val result =
+                networkFactory
+                    .createClient(address)
+                    .requestTimeSync()
+
+            if (
+                result is DeviceActionResult.Success
+            ) {
                 refreshStatus(
-                    reason = StatusRefreshReason.AFTER_ACTION
+                    reason =
+                        StatusRefreshReason
+                            .AFTER_ACTION
                 )
             }
 
@@ -205,6 +286,119 @@ class SmartOutletRepository(
 
                 is RelayApiResult.NetworkError -> {
                     RelayCommandResult.Failed(
+                        message = result.message
+                    )
+                }
+            }
+        } finally {
+            writeRequestMutex.unlock()
+        }
+    }
+
+    suspend fun updateSchedule(
+        relay: RelayNumber,
+        request: ScheduleUpdateRequest
+    ): ScheduleUpdateResult {
+        val validationError =
+            request.validationError()
+
+        if (validationError != null) {
+            return ScheduleUpdateResult.InvalidRequest(
+                message = validationError
+            )
+        }
+
+        if (!writeRequestMutex.tryLock()) {
+            return ScheduleUpdateResult
+                .SkippedAlreadyRunning
+        }
+
+        try {
+            val currentState =
+                _statusState.value
+
+            if (
+                currentState.connectionState !=
+                DeviceConnectionState.ONLINE ||
+                currentState.isStale
+            ) {
+                return ScheduleUpdateResult
+                    .DeviceUnavailable
+            }
+
+            val address =
+                resolveSavedAddress()
+                    ?: return ScheduleUpdateResult
+                        .NoSavedDevice
+
+            val result =
+                networkFactory
+                    .createClient(address)
+                    .updateSchedule(
+                        relay = relay,
+                        request = request
+                    )
+
+            return when (result) {
+                is ScheduleApiResult.Success -> {
+                    val refreshOutcome =
+                        refreshStatus(
+                            reason =
+                                StatusRefreshReason
+                                    .AFTER_ACTION
+                        )
+
+                    when (refreshOutcome) {
+                        StatusRefreshOutcome.SUCCESS -> {
+                            ScheduleUpdateResult.Success(
+                                relay = result.relay,
+                                confirmedSchedule =
+                                    result.confirmedSchedule
+                            )
+                        }
+
+                        else -> {
+                            ScheduleUpdateResult
+                                .ConfirmedButRefreshFailed(
+                                    relay = result.relay,
+                                    confirmedSchedule =
+                                        result.confirmedSchedule,
+                                    message =
+                                        _statusState.value
+                                            .errorMessage
+                                            ?: "The schedule was saved, but the latest device status could not be loaded."
+                                )
+                        }
+                    }
+                }
+
+                is ScheduleApiResult.InvalidRequest -> {
+                    ScheduleUpdateResult.InvalidRequest(
+                        message = result.message
+                    )
+                }
+
+                ScheduleApiResult.Timeout -> {
+                    ScheduleUpdateResult.Failed(
+                        message =
+                            "The schedule request timed out. Check the device status before trying again."
+                    )
+                }
+
+                is ScheduleApiResult.HttpError -> {
+                    ScheduleUpdateResult.Failed(
+                        message = result.message
+                    )
+                }
+
+                is ScheduleApiResult.InvalidResponse -> {
+                    ScheduleUpdateResult.Failed(
+                        message = result.message
+                    )
+                }
+
+                is ScheduleApiResult.NetworkError -> {
+                    ScheduleUpdateResult.Failed(
                         message = result.message
                     )
                 }
@@ -355,6 +549,23 @@ class SmartOutletRepository(
         }
     }
 
+    private fun restartForegroundPollingImmediately() {
+        if (!foregroundPollingRequested) {
+            return
+        }
+
+        pollingRestartJob?.cancel()
+
+        pollingRestartJob = scope.launch {
+            pollingJob?.cancelAndJoin()
+            pollingJob = null
+
+            if (foregroundPollingRequested) {
+                startForegroundPolling()
+            }
+        }
+    }
+
     private fun observeSavedAddress() {
         scope.launch {
             settingsStore.savedDeviceAddress
@@ -367,7 +578,15 @@ class SmartOutletRepository(
                         return@collect
                     }
 
-                    _statusState.update {
+                    val shouldRestartPolling =
+                        foregroundPollingRequested
+
+                    if (shouldRestartPolling) {
+                        pollingJob?.cancelAndJoin()
+                        pollingJob = null
+                    }
+
+                    _statusState.value =
                         DeviceStatusRepositoryState(
                             address = address,
                             connectionState =
@@ -379,6 +598,9 @@ class SmartOutletRepository(
                                         .CONNECTING
                                 }
                         )
+
+                    if (shouldRestartPolling) {
+                        startForegroundPolling()
                     }
                 }
         }

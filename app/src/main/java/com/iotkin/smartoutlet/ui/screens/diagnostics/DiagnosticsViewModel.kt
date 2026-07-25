@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.iotkin.smartoutlet.data.model.RelayNumber
 import com.iotkin.smartoutlet.data.network.DeviceActionResult
+import com.iotkin.smartoutlet.data.network.NetworkConnectivityMonitor
 import com.iotkin.smartoutlet.data.network.SmartOutletNetworkFactory
 import com.iotkin.smartoutlet.data.repository.DeviceConnectionState
 import com.iotkin.smartoutlet.data.repository.DeviceStatusRepositoryState
@@ -22,6 +23,11 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.iotkin.smartoutlet.ui.screens.schedule.ScheduleEditorController
+import com.iotkin.smartoutlet.ui.screens.schedule.ScheduleEditorUiState
+import com.iotkin.smartoutlet.ui.screens.schedule.ScheduleMeridiem
+
+
 
 data class DiagnosticsUiState(
     val repositoryState: DeviceStatusRepositoryState =
@@ -43,6 +49,10 @@ class DiagnosticsViewModel(
     application: Application
 ) : AndroidViewModel(application) {
 
+    private val connectivityMonitor =
+        NetworkConnectivityMonitor(
+            context = application
+        )
     private val repository =
         SmartOutletRepository(
             settingsStore =
@@ -72,9 +82,24 @@ class DiagnosticsViewModel(
             RelayControlUiState()
         )
 
+
+    private val scheduleEditorController =
+        ScheduleEditorController(
+            repository = repository,
+            scope = viewModelScope,
+            isAnotherWriteRunning = {
+                _relayControlState.value
+                    .isAnyRelayUpdating ||
+                        actionState.value
+                            .isRequestingTimeSync
+            }
+        )
     val relayControlState:
             StateFlow<RelayControlUiState> =
         _relayControlState.asStateFlow()
+    val scheduleEditorState:
+            StateFlow<ScheduleEditorUiState> =
+        scheduleEditorController.state
 
     val uiState: StateFlow<DiagnosticsUiState> =
         combine(
@@ -106,6 +131,20 @@ class DiagnosticsViewModel(
         repository.startForegroundPolling()
     }
 
+    init {
+        viewModelScope.launch {
+            connectivityMonitor
+                .isWifiAvailable
+                .collect { isAvailable ->
+                    repository
+                        .onWifiAvailabilityChanged(
+                            isAvailable =
+                                isAvailable
+                        )
+                }
+        }
+    }
+
     fun stopForegroundPolling() {
         repository.stopForegroundPolling()
     }
@@ -133,7 +172,9 @@ class DiagnosticsViewModel(
             actionState.value
                 .isRequestingTimeSync ||
             _relayControlState.value
-                .isAnyRelayUpdating
+                .isAnyRelayUpdating ||
+            scheduleEditorState.value
+                .isSaving
         ) {
             return
         }
@@ -229,7 +270,9 @@ class DiagnosticsViewModel(
             currentRelayState
                 .isAnyRelayUpdating ||
             actionState.value
-                .isRequestingTimeSync
+                .isRequestingTimeSync ||
+            scheduleEditorState.value
+                .isSaving
         ) {
             return
         }
@@ -330,6 +373,72 @@ class DiagnosticsViewModel(
         }
     }
 
+    fun loadScheduleEditor(
+        relay: RelayNumber
+    ) {
+        scheduleEditorController
+            .loadSchedule(relay)
+    }
+
+    fun updateScheduleEnabled(
+        enabled: Boolean
+    ) {
+        scheduleEditorController
+            .updateEnabled(enabled)
+    }
+
+    fun updateScheduleOnHour(
+        value: String
+    ) {
+        scheduleEditorController
+            .updateOnHour(value)
+    }
+
+    fun updateScheduleOnMinute(
+        value: String
+    ) {
+        scheduleEditorController
+            .updateOnMinute(value)
+    }
+
+    fun updateScheduleOnMeridiem(
+        meridiem: ScheduleMeridiem
+    ) {
+        scheduleEditorController
+            .updateOnMeridiem(meridiem)
+    }
+
+    fun updateScheduleOffHour(
+        value: String
+    ) {
+        scheduleEditorController
+            .updateOffHour(value)
+    }
+
+    fun updateScheduleOffMinute(
+        value: String
+    ) {
+        scheduleEditorController
+            .updateOffMinute(value)
+    }
+
+    fun updateScheduleOffMeridiem(
+        meridiem: ScheduleMeridiem
+    ) {
+        scheduleEditorController
+            .updateOffMeridiem(meridiem)
+    }
+
+    fun saveSchedule() {
+        scheduleEditorController
+            .saveSchedule()
+    }
+
+    fun clearScheduleFeedback() {
+        scheduleEditorController
+            .clearFeedback()
+    }
+
     fun clearRelayFeedback() {
         _relayControlState.update {
             it.copy(
@@ -419,4 +528,5 @@ class DiagnosticsViewModel(
 
         return "Outlet ${relay.apiValue} is now $stateText."
     }
+
 }

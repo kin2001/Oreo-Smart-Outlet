@@ -39,6 +39,9 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.delay
+import com.iotkin.smartoutlet.ui.components.connectionDescription
+import com.iotkin.smartoutlet.ui.components.connectionLabel
+import com.iotkin.smartoutlet.ui.components.writeUnavailableMessage
 
 @Composable
 fun HomeRoute(
@@ -149,6 +152,7 @@ fun HomeScreen(
                     OutletControlCard(
                         relay = RelayNumber.RELAY_1,
                         relayStatus = status.relay1,
+                        statusState = statusState,
                         controlsEnabled =
                             controlsEnabled,
                         deviceAvailable =
@@ -179,6 +183,7 @@ fun HomeScreen(
                     OutletControlCard(
                         relay = RelayNumber.RELAY_2,
                         relayStatus = status.relay2,
+                        statusState = statusState,
                         controlsEnabled =
                             controlsEnabled,
                         deviceAvailable =
@@ -307,15 +312,7 @@ private fun HomeHeader(
 
                 Text(
                     text =
-                        if (
-                            statusState.connectionState ==
-                            DeviceConnectionState.ONLINE &&
-                            !statusState.isStale
-                        ) {
-                            "Everything looks good."
-                        } else {
-                            "Live controls will return after reconnection."
-                        },
+                        statusState.connectionDescription(),
                     style =
                         MaterialTheme.typography
                             .bodyLarge,
@@ -337,32 +334,7 @@ private fun ConnectionStatusPill(
     statusState: DeviceStatusRepositoryState
 ) {
     val text =
-        when {
-            statusState.isStale -> {
-                "Stale"
-            }
-
-            else -> {
-                when (
-                    statusState.connectionState
-                ) {
-                    DeviceConnectionState.NO_SAVED_DEVICE ->
-                        "No device"
-
-                    DeviceConnectionState.CONNECTING ->
-                        "Connecting"
-
-                    DeviceConnectionState.ONLINE ->
-                        "Online"
-
-                    DeviceConnectionState.RECONNECTING ->
-                        "Reconnecting"
-
-                    DeviceConnectionState.OFFLINE ->
-                        "Offline"
-                }
-            }
-        }
+        statusState.connectionLabel()
 
     val color =
         when {
@@ -411,6 +383,8 @@ private fun ConnectionStatusPill(
 private fun OutletControlCard(
     relay: RelayNumber,
     relayStatus: RelayStatusResponse,
+    statusState:
+    DeviceStatusRepositoryState,
     controlsEnabled: Boolean,
     deviceAvailable: Boolean,
     isUpdating: Boolean,
@@ -597,7 +571,12 @@ private fun OutletControlCard(
             if (!deviceAvailable) {
                 Text(
                     text =
-                        "Controls are unavailable while the device is offline, reconnecting, or showing stale data.",
+                        statusState
+                            .writeUnavailableMessage(
+                                featureName =
+                                    "Outlet controls"
+                            )
+                            ?: "",
                     style =
                         MaterialTheme.typography
                             .bodySmall,

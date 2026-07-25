@@ -21,7 +21,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 sealed interface DeviceConnectionSetupEvent {
+
     data object DeviceSaved :
+        DeviceConnectionSetupEvent
+
+    data object DeviceDisconnected :
         DeviceConnectionSetupEvent
 }
 
@@ -242,6 +246,7 @@ class DeviceConnectionSetupViewModel(
         }
     }
 
+
     fun saveDevice() {
         val currentState = _uiState.value
         val address = currentState.verifiedAddress
@@ -289,6 +294,20 @@ class DeviceConnectionSetupViewModel(
                     )
                 }
             }
+        }
+    }
+    fun disconnectDevice() {
+        viewModelScope.launch {
+            settingsStore.clearDeviceAddress()
+
+            _uiState.value =
+                DeviceConnectionSetupUiState()
+
+            discoveryCoordinator.refresh()
+
+            _events.emit(
+                DeviceConnectionSetupEvent.DeviceDisconnected
+            )
         }
     }
 

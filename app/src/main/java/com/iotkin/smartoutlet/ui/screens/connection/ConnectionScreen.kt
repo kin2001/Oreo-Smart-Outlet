@@ -475,6 +475,10 @@ fun DeviceConnectionSetupRoute(
                 DeviceConnectionSetupEvent.DeviceSaved -> {
                     onDeviceSaved()
                 }
+
+                DeviceConnectionSetupEvent.DeviceDisconnected -> {
+                    Unit
+                }
             }
         }
     }

@@ -32,6 +32,8 @@ import com.iotkin.smartoutlet.ui.screens.diagnostics.DiagnosticsViewModel
 import com.iotkin.smartoutlet.ui.theme.OreoShapeTokens
 import com.iotkin.smartoutlet.ui.theme.OreoSpacing
 import kotlinx.coroutines.delay
+import com.iotkin.smartoutlet.data.repository.DeviceStatusRepositoryState
+import com.iotkin.smartoutlet.ui.components.writeUnavailableMessage
 
 @Composable
 fun OutletDetailsRoute(
@@ -81,6 +83,7 @@ fun OutletDetailsRoute(
                 !relayControlState.isAnyRelayUpdating
 
     OutletDetailsScreen(
+        statusState = statusState,
         relay = relay,
         relayStatus = relayStatus,
         controlsEnabled =
@@ -117,6 +120,8 @@ fun OutletDetailsRoute(
 fun OutletDetailsScreen(
     relay: RelayNumber,
     relayStatus: RelayStatusResponse?,
+    statusState:
+    DeviceStatusRepositoryState,
     controlsEnabled: Boolean,
     deviceAvailable: Boolean,
     isUpdating: Boolean,
@@ -222,6 +227,7 @@ fun OutletDetailsScreen(
                 OutletStateDetailsCard(
                     relay = relay,
                     relayStatus = relayStatus,
+                    statusState = statusState,
                     controlsEnabled =
                         controlsEnabled,
                     deviceAvailable =
@@ -254,6 +260,8 @@ fun OutletDetailsScreen(
 private fun OutletStateDetailsCard(
     relay: RelayNumber,
     relayStatus: RelayStatusResponse,
+    statusState:
+    DeviceStatusRepositoryState,
     controlsEnabled: Boolean,
     deviceAvailable: Boolean,
     isUpdating: Boolean,
@@ -381,7 +389,12 @@ private fun OutletStateDetailsCard(
                 Text(
                     text =
                         errorMessage
-                            ?: "Controls are unavailable until the device reconnects.",
+                            ?: statusState
+                                .writeUnavailableMessage(
+                                    featureName =
+                                        "Outlet controls"
+                                )
+                            ?: "",
                     style =
                         MaterialTheme.typography
                             .bodyMedium,
