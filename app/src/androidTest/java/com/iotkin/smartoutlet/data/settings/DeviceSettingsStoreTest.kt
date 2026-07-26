@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.iotkin.smartoutlet.data.model.DeviceAddress
 import com.iotkin.smartoutlet.data.model.RelayNumber
 import java.io.File
 import java.util.UUID
@@ -62,6 +63,59 @@ class DeviceSettingsStoreTest {
     }
 
     @Test
+    fun preferencesPersistWithTheirSelectedValues() =
+        runBlocking {
+            settingsStore
+                .setFriendlyDeviceName(
+                    "  Bedroom Outlet  "
+                )
+            settingsStore
+                .setAutomaticDiscoveryEnabled(
+                    false
+                )
+            settingsStore
+                .setPollingIntervalSeconds(30)
+            settingsStore
+                .setThemePreference(
+                    AppThemePreference.DARK
+                )
+            settingsStore
+                .setTimeFormatPreference(
+                    TimeFormatPreference
+                        .TWENTY_FOUR_HOUR
+                )
+
+            val restored =
+                settingsStore.appSettings
+                    .first()
+
+            assertEquals(
+                "Bedroom Outlet",
+                restored.friendlyDeviceName
+            )
+            assertEquals(
+                false,
+                restored
+                    .automaticDiscoveryEnabled
+            )
+            assertEquals(
+                30,
+                restored
+                    .pollingIntervalSeconds
+            )
+            assertEquals(
+                AppThemePreference.DARK,
+                restored.themePreference
+            )
+            assertEquals(
+                TimeFormatPreference
+                    .TWENTY_FOUR_HOUR,
+                restored
+                    .timeFormatPreference
+            )
+        }
+
+    @Test
     fun outletNamesPersistTrimmedAndLimited() =
         runBlocking {
             settingsStore
@@ -94,8 +148,20 @@ class DeviceSettingsStoreTest {
         }
 
     @Test
-    fun resetRestoresDefaultOutletNames() =
+    fun resetRestoresDefaultsWithoutRemovingDevice() =
         runBlocking {
+            val savedAddress =
+                DeviceAddress(
+                    host = "192.168.8.113",
+                    port = 8080
+                )
+
+            settingsStore
+                .saveDeviceAddress(savedAddress)
+            settingsStore
+                .setFriendlyDeviceName(
+                    "Bedroom Outlet"
+                )
             settingsStore
                 .setOutletFriendlyName(
                     relay = RelayNumber.RELAY_1,
@@ -106,6 +172,21 @@ class DeviceSettingsStoreTest {
                 .setOutletFriendlyName(
                     relay = RelayNumber.RELAY_2,
                     value = "Fan"
+                )
+            settingsStore
+                .setAutomaticDiscoveryEnabled(
+                    false
+                )
+            settingsStore
+                .setPollingIntervalSeconds(30)
+            settingsStore
+                .setThemePreference(
+                    AppThemePreference.DARK
+                )
+            settingsStore
+                .setTimeFormatPreference(
+                    TimeFormatPreference
+                        .TWENTY_FOUR_HOUR
                 )
 
             settingsStore.resetAppSettings()
@@ -126,6 +207,39 @@ class DeviceSettingsStoreTest {
                     .DEFAULT_OUTLET_2_FRIENDLY_NAME,
                 resetSettings
                     .outlet2FriendlyName
+            )
+            assertEquals(
+                AppSettings
+                    .DEFAULT_FRIENDLY_DEVICE_NAME,
+                resetSettings
+                    .friendlyDeviceName
+            )
+            assertEquals(
+                true,
+                resetSettings
+                    .automaticDiscoveryEnabled
+            )
+            assertEquals(
+                AppSettings
+                    .DEFAULT_POLLING_INTERVAL_SECONDS,
+                resetSettings
+                    .pollingIntervalSeconds
+            )
+            assertEquals(
+                AppThemePreference.SYSTEM,
+                resetSettings.themePreference
+            )
+            assertEquals(
+                TimeFormatPreference
+                    .TWELVE_HOUR,
+                resetSettings
+                    .timeFormatPreference
+            )
+            assertEquals(
+                savedAddress,
+                settingsStore
+                    .savedDeviceAddress
+                    .first()
             )
         }
 

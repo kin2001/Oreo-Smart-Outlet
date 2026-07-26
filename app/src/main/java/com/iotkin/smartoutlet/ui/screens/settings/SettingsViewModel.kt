@@ -8,12 +8,9 @@ import com.iotkin.smartoutlet.data.settings.AppSettings
 import com.iotkin.smartoutlet.data.settings.AppThemePreference
 import com.iotkin.smartoutlet.data.settings.DeviceSettingsStore
 import com.iotkin.smartoutlet.data.settings.TimeFormatPreference
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -23,7 +20,6 @@ data class SettingsUiState(
     val appSettings: AppSettings = AppSettings(),
     val savedAddress: DeviceAddress? = null,
     val isSavingFriendlyName: Boolean = false,
-    val isRemovingDevice: Boolean = false,
     val isResettingSettings: Boolean = false,
     val message: String? = null,
     val error: String? = null
@@ -31,15 +27,10 @@ data class SettingsUiState(
 
 private data class SettingsActionState(
     val isSavingFriendlyName: Boolean = false,
-    val isRemovingDevice: Boolean = false,
     val isResettingSettings: Boolean = false,
     val message: String? = null,
     val error: String? = null
 )
-
-sealed interface SettingsEvent {
-    data object SavedDeviceRemoved : SettingsEvent
-}
 
 class SettingsViewModel(
     application: Application
@@ -53,12 +44,6 @@ class SettingsViewModel(
             SettingsActionState()
         )
 
-    private val _events =
-        MutableSharedFlow<SettingsEvent>()
-
-    val events: SharedFlow<SettingsEvent> =
-        _events.asSharedFlow()
-
     val uiState: StateFlow<SettingsUiState> =
         combine(
             settingsStore.appSettings,
@@ -70,8 +55,6 @@ class SettingsViewModel(
                 savedAddress = savedAddress,
                 isSavingFriendlyName =
                     action.isSavingFriendlyName,
-                isRemovingDevice =
-                    action.isRemovingDevice,
                 isResettingSettings =
                     action.isResettingSettings,
                 message = action.message,
@@ -207,52 +190,6 @@ class SettingsViewModel(
                 )
         }
     }
-
-    fun removeSavedDevice() {
-        if (
-            actionState.value
-                .isRemovingDevice
-        ) {
-            return
-        }
-
-        actionState.update {
-            it.copy(
-                isRemovingDevice = true,
-                message = null,
-                error = null
-            )
-        }
-
-        viewModelScope.launch {
-            runCatching {
-                settingsStore
-                    .clearDeviceAddress()
-            }.onSuccess {
-                actionState.update {
-                    it.copy(
-                        isRemovingDevice = false
-                    )
-                }
-
-                _events.emit(
-                    SettingsEvent
-                        .SavedDeviceRemoved
-                )
-            }.onFailure {
-                actionState.update {
-                    it.copy(
-                        isRemovingDevice = false,
-                        message = null,
-                        error =
-                            "The saved device could not be removed."
-                    )
-                }
-            }
-        }
-    }
-
-
 
     fun resetAppSettings() {
         if (

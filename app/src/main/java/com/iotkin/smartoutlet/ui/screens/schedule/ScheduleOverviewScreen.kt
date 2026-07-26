@@ -30,6 +30,7 @@ import com.iotkin.smartoutlet.data.model.RelayScheduleResponse
 import com.iotkin.smartoutlet.data.model.RelayStatusResponse
 import com.iotkin.smartoutlet.data.repository.DeviceConnectionState
 import com.iotkin.smartoutlet.data.repository.DeviceStatusRepositoryState
+import com.iotkin.smartoutlet.data.settings.TimeFormatPreference
 import com.iotkin.smartoutlet.ui.screens.diagnostics.DiagnosticsViewModel
 import com.iotkin.smartoutlet.ui.theme.OreoShapeTokens
 import com.iotkin.smartoutlet.ui.theme.OreoSmartOutletTheme
@@ -62,6 +63,8 @@ fun ScheduleOverviewRoute(
         outlet2Name =
             appSettings
                 .outlet2FriendlyName,
+        timeFormatPreference =
+            appSettings.timeFormatPreference,
         onEditSchedule = onEditSchedule,
         modifier = modifier
     )
@@ -72,6 +75,8 @@ fun ScheduleOverviewScreen(
     statusState: DeviceStatusRepositoryState,
     outlet1Name: String,
     outlet2Name: String,
+    timeFormatPreference:
+        TimeFormatPreference,
     onEditSchedule: (RelayNumber) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -128,6 +133,8 @@ fun ScheduleOverviewScreen(
                         lastRefreshEpochMillis =
                             statusState
                                 .lastSuccessfulRefreshEpochMillis,
+                        timeFormatPreference =
+                            timeFormatPreference,
                         onEdit = {
                             onEditSchedule(
                                 RelayNumber.RELAY_1
@@ -145,6 +152,8 @@ fun ScheduleOverviewScreen(
                         lastRefreshEpochMillis =
                             statusState
                                 .lastSuccessfulRefreshEpochMillis,
+                        timeFormatPreference =
+                            timeFormatPreference,
                         onEdit = {
                             onEditSchedule(
                                 RelayNumber.RELAY_2
@@ -306,6 +315,8 @@ private fun OutletScheduleCard(
     relayStatus: RelayStatusResponse,
     deviceAvailable: Boolean,
     lastRefreshEpochMillis: Long?,
+    timeFormatPreference:
+        TimeFormatPreference,
     onEdit: () -> Unit
 ) {
     val schedule =
@@ -371,7 +382,9 @@ private fun OutletScheduleCard(
                 label = "Turn on",
                 value = formatScheduleTime(
                     hour = schedule.onHour,
-                    minute = schedule.onMinute
+                    minute = schedule.onMinute,
+                    timeFormatPreference =
+                        timeFormatPreference
                 )
             )
 
@@ -379,7 +392,9 @@ private fun OutletScheduleCard(
                 label = "Turn off",
                 value = formatScheduleTime(
                     hour = schedule.offHour,
-                    minute = schedule.offMinute
+                    minute = schedule.offMinute,
+                    timeFormatPreference =
+                        timeFormatPreference
                 )
             )
 
@@ -396,7 +411,10 @@ private fun OutletScheduleCard(
             Text(
                 text =
                     formatScheduleRefresh(
-                        lastRefreshEpochMillis
+                        epochMillis =
+                            lastRefreshEpochMillis,
+                        timeFormatPreference =
+                            timeFormatPreference
                     ),
                 style =
                     MaterialTheme.typography
@@ -633,13 +651,28 @@ private fun ScheduleUnavailableCard(
 
 internal fun formatScheduleTime(
     hour: Int,
-    minute: Int
+    minute: Int,
+    timeFormatPreference:
+        TimeFormatPreference
 ): String {
     val safeHour =
         hour.coerceIn(0, 23)
 
     val safeMinute =
         minute.coerceIn(0, 59)
+
+    if (
+        timeFormatPreference ==
+        TimeFormatPreference
+            .TWENTY_FOUR_HOUR
+    ) {
+        return String.format(
+            Locale.US,
+            "%02d:%02d",
+            safeHour,
+            safeMinute
+        )
+    }
 
     val suffix =
         if (safeHour < 12) {
@@ -664,7 +697,9 @@ internal fun formatScheduleTime(
 }
 
 private fun formatScheduleRefresh(
-    epochMillis: Long?
+    epochMillis: Long?,
+    timeFormatPreference:
+        TimeFormatPreference
 ): String {
     if (epochMillis == null) {
         return "Not refreshed"
@@ -672,7 +707,15 @@ private fun formatScheduleRefresh(
 
     val formatter =
         DateTimeFormatter.ofPattern(
-            "MMM d, h:mm:ss a",
+            when (timeFormatPreference) {
+                TimeFormatPreference
+                    .TWELVE_HOUR ->
+                    "MMM d, h:mm:ss a"
+
+                TimeFormatPreference
+                    .TWENTY_FOUR_HOUR ->
+                    "MMM d, HH:mm:ss"
+            },
             Locale.US
         )
 
@@ -723,6 +766,9 @@ private fun OutletScheduleCardLargeFontPreview() {
                     ),
                 deviceAvailable = true,
                 lastRefreshEpochMillis = null,
+                timeFormatPreference =
+                    TimeFormatPreference
+                        .TWELVE_HOUR,
                 onEdit = {}
             )
         }

@@ -58,6 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iotkin.smartoutlet.data.model.DeviceStatusResponse
 import com.iotkin.smartoutlet.data.repository.DeviceConnectionState
 import com.iotkin.smartoutlet.data.repository.DeviceStatusRepositoryState
+import com.iotkin.smartoutlet.data.settings.TimeFormatPreference
 import com.iotkin.smartoutlet.ui.theme.OreoShapeTokens
 import com.iotkin.smartoutlet.ui.theme.OreoSmartOutletTheme
 import com.iotkin.smartoutlet.ui.theme.OreoSpacing
@@ -87,6 +88,8 @@ fun DiagnosticsRoute(
             appSettings.outlet1FriendlyName,
         outlet2Name =
             appSettings.outlet2FriendlyName,
+        timeFormatPreference =
+            appSettings.timeFormatPreference,
         onRefreshDeviceStatus =
             viewModel::refreshDeviceStatus,
         onRequestTimeSync =
@@ -116,6 +119,8 @@ fun DiagnosticsScreen(
     state: DiagnosticsUiState,
     outlet1Name: String,
     outlet2Name: String,
+    timeFormatPreference:
+        TimeFormatPreference,
     onRefreshDeviceStatus: () -> Unit,
     onRequestTimeSync: () -> Unit,
     onManageDevice: () -> Unit,
@@ -224,7 +229,9 @@ fun DiagnosticsScreen(
                     state = repositoryState,
                     status = status,
                     outlet1Name = outlet1Name,
-                    outlet2Name = outlet2Name
+                    outlet2Name = outlet2Name,
+                    timeFormatPreference =
+                        timeFormatPreference
                 )
             }
         }
@@ -707,7 +714,9 @@ private fun DeviceAddressRow(
 
 @Composable
 private fun ConnectionSummaryCard(
-    state: DeviceStatusRepositoryState
+    state: DeviceStatusRepositoryState,
+    timeFormatPreference:
+        TimeFormatPreference
 ) {
     val statusText =
         when (state.connectionState) {
@@ -763,7 +772,8 @@ private fun ConnectionSummaryCard(
             value =
                 formatRefreshTimestamp(
                     state
-                        .lastSuccessfulRefreshEpochMillis
+                        .lastSuccessfulRefreshEpochMillis,
+                    timeFormatPreference
                 )
         )
 
@@ -1002,7 +1012,9 @@ private fun TechnicalDetailsSection(
     state: DeviceStatusRepositoryState,
     status: DeviceStatusResponse,
     outlet1Name: String,
-    outlet2Name: String
+    outlet2Name: String,
+    timeFormatPreference:
+        TimeFormatPreference
 ) {
     var expanded by rememberSaveable {
         mutableStateOf(false)
@@ -1060,7 +1072,9 @@ private fun TechnicalDetailsSection(
                     )
             ) {
                 ConnectionSummaryCard(
-                    state = state
+                    state = state,
+                    timeFormatPreference =
+                        timeFormatPreference
                 )
 
                 NetworkInformationCard(
@@ -1074,7 +1088,9 @@ private fun TechnicalDetailsSection(
                 RelayInformationCard(
                     status = status,
                     outlet1Name = outlet1Name,
-                    outlet2Name = outlet2Name
+                    outlet2Name = outlet2Name,
+                    timeFormatPreference =
+                        timeFormatPreference
                 )
 
                 DeviceInformationCard(
@@ -1156,7 +1172,9 @@ private fun TimeInformationCard(
 private fun RelayInformationCard(
     status: DeviceStatusResponse,
     outlet1Name: String,
-    outlet2Name: String
+    outlet2Name: String,
+    timeFormatPreference:
+        TimeFormatPreference
 ) {
     DiagnosticsCard(
         title = "Relays and schedules"
@@ -1200,7 +1218,9 @@ private fun RelayInformationCard(
                     minute =
                         status.relay1
                             .schedule
-                            .onMinute
+                            .onMinute,
+                    timeFormatPreference =
+                        timeFormatPreference
                 )
         )
 
@@ -1215,7 +1235,9 @@ private fun RelayInformationCard(
                     minute =
                         status.relay1
                             .schedule
-                            .offMinute
+                            .offMinute,
+                    timeFormatPreference =
+                        timeFormatPreference
                 )
         )
 
@@ -1260,7 +1282,9 @@ private fun RelayInformationCard(
                     minute =
                         status.relay2
                             .schedule
-                            .onMinute
+                            .onMinute,
+                    timeFormatPreference =
+                        timeFormatPreference
                 )
         )
 
@@ -1275,7 +1299,9 @@ private fun RelayInformationCard(
                     minute =
                         status.relay2
                             .schedule
-                            .offMinute
+                            .offMinute,
+                    timeFormatPreference =
+                        timeFormatPreference
                 )
         )
     }
@@ -1578,15 +1604,50 @@ private fun relayState(
     }
 }
 
-private fun formatScheduleTime(
+internal fun formatScheduleTime(
     hour: Int,
-    minute: Int
+    minute: Int,
+    timeFormatPreference:
+        TimeFormatPreference
 ): String {
+    val safeHour =
+        hour.coerceIn(0, 23)
+
+    val safeMinute =
+        minute.coerceIn(0, 59)
+
+    if (
+        timeFormatPreference ==
+        TimeFormatPreference
+            .TWENTY_FOUR_HOUR
+    ) {
+        return String.format(
+            Locale.US,
+            "%02d:%02d",
+            safeHour,
+            safeMinute
+        )
+    }
+
+    val displayHour =
+        when (val value = safeHour % 12) {
+            0 -> 12
+            else -> value
+        }
+
+    val suffix =
+        if (safeHour < 12) {
+            "AM"
+        } else {
+            "PM"
+        }
+
     return String.format(
         Locale.US,
-        "%02d:%02d",
-        hour,
-        minute
+        "%d:%02d %s",
+        displayHour,
+        safeMinute,
+        suffix
     )
 }
 
@@ -1659,7 +1720,9 @@ private fun formatBytes(
 }
 
 private fun formatRefreshTimestamp(
-    epochMillis: Long?
+    epochMillis: Long?,
+    timeFormatPreference:
+        TimeFormatPreference
 ): String {
     if (epochMillis == null) {
         return "Never"
@@ -1667,7 +1730,15 @@ private fun formatRefreshTimestamp(
 
     val formatter =
         DateTimeFormatter.ofPattern(
-            "MMM d, yyyy h:mm:ss a",
+            when (timeFormatPreference) {
+                TimeFormatPreference
+                    .TWELVE_HOUR ->
+                    "MMM d, yyyy h:mm:ss a"
+
+                TimeFormatPreference
+                    .TWENTY_FOUR_HOUR ->
+                    "MMM d, yyyy HH:mm:ss"
+            },
             Locale.US
         )
 

@@ -28,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iotkin.smartoutlet.data.model.RelayNumber
 import com.iotkin.smartoutlet.data.model.RelayStatusResponse
 import com.iotkin.smartoutlet.data.repository.DeviceConnectionState
+import com.iotkin.smartoutlet.data.settings.TimeFormatPreference
 import com.iotkin.smartoutlet.ui.screens.diagnostics.DiagnosticsViewModel
 import com.iotkin.smartoutlet.ui.theme.OreoShapeTokens
 import com.iotkin.smartoutlet.ui.theme.OreoSpacing
@@ -103,6 +104,8 @@ fun OutletDetailsRoute(
         lastRefreshEpochMillis =
             statusState
                 .lastSuccessfulRefreshEpochMillis,
+        timeFormatPreference =
+            appSettings.timeFormatPreference,
         feedbackMessage =
             relayControlState.error
                 ?: relayControlState.message,
@@ -134,6 +137,8 @@ fun OutletDetailsScreen(
     isUpdating: Boolean,
     isStale: Boolean,
     lastRefreshEpochMillis: Long?,
+    timeFormatPreference:
+        TimeFormatPreference,
     feedbackMessage: String?,
     feedbackIsError: Boolean,
     errorMessage: String?,
@@ -242,6 +247,8 @@ fun OutletDetailsScreen(
                     isStale = isStale,
                     lastRefreshEpochMillis =
                         lastRefreshEpochMillis,
+                    timeFormatPreference =
+                        timeFormatPreference,
                     feedbackMessage =
                         feedbackMessage,
                     feedbackIsError =
@@ -255,7 +262,9 @@ fun OutletDetailsScreen(
 
             item {
                 OutletScheduleDetailsCard(
-                    relayStatus = relayStatus
+                    relayStatus = relayStatus,
+                    timeFormatPreference =
+                        timeFormatPreference
                 )
             }
         }
@@ -273,6 +282,8 @@ private fun OutletStateDetailsCard(
     isUpdating: Boolean,
     isStale: Boolean,
     lastRefreshEpochMillis: Long?,
+    timeFormatPreference:
+        TimeFormatPreference,
     feedbackMessage: String?,
     feedbackIsError: Boolean,
     errorMessage: String?,
@@ -387,7 +398,8 @@ private fun OutletStateDetailsCard(
                     "Last successful app refresh",
                 value =
                     formatLastAppRefresh(
-                        lastRefreshEpochMillis
+                        lastRefreshEpochMillis,
+                        timeFormatPreference
                     )
             )
 
@@ -440,7 +452,9 @@ private fun OutletStateDetailsCard(
 
 @Composable
 private fun OutletScheduleDetailsCard(
-    relayStatus: RelayStatusResponse
+    relayStatus: RelayStatusResponse,
+    timeFormatPreference:
+        TimeFormatPreference
 ) {
     val schedule =
         relayStatus.schedule
@@ -493,7 +507,8 @@ private fun OutletScheduleDetailsCard(
                 value =
                     formatScheduleClock(
                         schedule.onHour,
-                        schedule.onMinute
+                        schedule.onMinute,
+                        timeFormatPreference
                     )
             )
 
@@ -502,7 +517,8 @@ private fun OutletScheduleDetailsCard(
                 value =
                     formatScheduleClock(
                         schedule.offHour,
-                        schedule.offMinute
+                        schedule.offMinute,
+                        timeFormatPreference
                     )
             )
 

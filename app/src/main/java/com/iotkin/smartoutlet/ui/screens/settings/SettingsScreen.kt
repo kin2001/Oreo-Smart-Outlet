@@ -3,48 +3,61 @@ package com.iotkin.smartoutlet.ui.screens.settings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.iotkin.smartoutlet.data.model.DeviceAddress
+import com.iotkin.smartoutlet.data.settings.AppSettings
 import com.iotkin.smartoutlet.data.settings.AppThemePreference
 import com.iotkin.smartoutlet.data.settings.TimeFormatPreference
 import com.iotkin.smartoutlet.ui.theme.OreoShapeTokens
+import com.iotkin.smartoutlet.ui.theme.OreoSmartOutletTheme
 import com.iotkin.smartoutlet.ui.theme.OreoSpacing
 
+private enum class SettingsDialog {
+    FRIENDLY_NAME,
+    STATUS_REFRESH,
+    APPEARANCE,
+    TIME_FORMAT,
+    RESET
+}
 
 @Composable
 fun SettingsRoute(
     onManageDevice: () -> Unit,
-    onDeviceRemoved: () -> Unit,
     onAbout: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = viewModel()
@@ -52,195 +65,31 @@ fun SettingsRoute(
     val state by viewModel.uiState
         .collectAsStateWithLifecycle()
 
-    var friendlyName by rememberSaveable {
-        mutableStateOf(
-            state.appSettings
-                .friendlyDeviceName
-        )
-    }
-
-    var showRemoveConfirmation by
-    rememberSaveable {
-        mutableStateOf(false)
-    }
-
-    var showResetConfirmation by
-    rememberSaveable {
-        mutableStateOf(false)
-    }
-
-    LaunchedEffect(
-        state.appSettings
-            .friendlyDeviceName
-    ) {
-        friendlyName =
-            state.appSettings
-                .friendlyDeviceName
-    }
-
-    LaunchedEffect(viewModel) {
-        viewModel.events.collect { event ->
-            when (event) {
-                SettingsEvent
-                    .SavedDeviceRemoved -> {
-                    onDeviceRemoved()
-                }
-            }
-        }
-    }
-
     SettingsScreen(
         state = state,
-        friendlyName = friendlyName,
-        onFriendlyNameChange = {
-            friendlyName = it
-            viewModel.clearFeedback()
-        },
-        onSaveFriendlyName = {
-            viewModel
-                .saveFriendlyDeviceName(
-                    friendlyName
-                )
-        },
+        onSaveFriendlyName =
+            viewModel::saveFriendlyDeviceName,
         onAutomaticDiscoveryChange =
             viewModel::
             setAutomaticDiscoveryEnabled,
         onPollingIntervalChange =
-            viewModel::
-            setPollingIntervalSeconds,
+            viewModel::setPollingIntervalSeconds,
         onThemeChange =
             viewModel::setThemePreference,
         onTimeFormatChange =
-            viewModel::
-            setTimeFormatPreference,
+            viewModel::setTimeFormatPreference,
         onManageDevice = onManageDevice,
-        onRemoveDevice = {
-            showRemoveConfirmation = true
-        },
-        onResetSettings = {
-            showResetConfirmation = true
-        },
+        onResetSettings =
+            viewModel::resetAppSettings,
         onAbout = onAbout,
         modifier = modifier
     )
-
-    if (showRemoveConfirmation) {
-        AlertDialog(
-            onDismissRequest = {
-                if (!state.isRemovingDevice) {
-                    showRemoveConfirmation =
-                        false
-                }
-            },
-            title = {
-                Text(
-                    text =
-                        "Remove saved device?"
-                )
-            },
-            text = {
-                Text(
-                    text =
-                        "The saved IP address and port will be removed. You will need to connect to the outlet again."
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showRemoveConfirmation =
-                            false
-
-                        viewModel
-                            .removeSavedDevice()
-                    },
-                    enabled =
-                        !state.isRemovingDevice
-                ) {
-                    Text(
-                        text = "Remove"
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showRemoveConfirmation =
-                            false
-                    },
-                    enabled =
-                        !state.isRemovingDevice
-                ) {
-                    Text(
-                        text = "Cancel"
-                    )
-                }
-            }
-        )
-    }
-
-    if (showResetConfirmation) {
-        AlertDialog(
-            onDismissRequest = {
-                if (
-                    !state.isResettingSettings
-                ) {
-                    showResetConfirmation =
-                        false
-                }
-            },
-            title = {
-                Text(
-                    text =
-                        "Reset app settings?"
-                )
-            },
-            text = {
-                Text(
-                    text =
-                        "Theme, time format, discovery, polling interval, device name, and outlet names will return to their defaults. The saved device will remain connected."
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showResetConfirmation =
-                            false
-
-                        viewModel
-                            .resetAppSettings()
-                    },
-                    enabled =
-                        !state.isResettingSettings
-                ) {
-                    Text(
-                        text = "Reset"
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showResetConfirmation =
-                            false
-                    },
-                    enabled =
-                        !state.isResettingSettings
-                ) {
-                    Text(
-                        text = "Cancel"
-                    )
-                }
-            }
-        )
-    }
 }
 
 @Composable
 fun SettingsScreen(
     state: SettingsUiState,
-    friendlyName: String,
-    onFriendlyNameChange: (String) -> Unit,
-    onSaveFriendlyName: () -> Unit,
+    onSaveFriendlyName: (String) -> Unit,
     onAutomaticDiscoveryChange:
         (Boolean) -> Unit,
     onPollingIntervalChange:
@@ -250,495 +99,182 @@ fun SettingsScreen(
     onTimeFormatChange:
         (TimeFormatPreference) -> Unit,
     onManageDevice: () -> Unit,
-    onRemoveDevice: () -> Unit,
     onResetSettings: () -> Unit,
     onAbout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var openDialog by rememberSaveable {
+        mutableStateOf<SettingsDialog?>(null)
+    }
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = OreoSpacing.ScreenMargin,
-            top = OreoSpacing.StackMedium,
-            end = OreoSpacing.ScreenMargin,
-            bottom = OreoSpacing.StackLarge
-        ),
+        contentPadding =
+            PaddingValues(
+                start = OreoSpacing.ScreenMargin,
+                top = OreoSpacing.StackMedium,
+                end = OreoSpacing.ScreenMargin,
+                bottom = OreoSpacing.StackLarge
+            ),
         verticalArrangement =
             Arrangement.spacedBy(
                 OreoSpacing.StackMedium
             )
     ) {
         item {
-            Column(
-                verticalArrangement =
-                    Arrangement.spacedBy(
-                        OreoSpacing.StackSmall
-                    )
-            ) {
-                Text(
-                    text = "Settings",
-                    style =
-                        MaterialTheme.typography
-                            .headlineLarge,
-                    color =
-                        MaterialTheme.colorScheme
-                            .onBackground
-                )
-
-                Text(
-                    text =
-                        "Manage your outlet and app preferences.",
-                    style =
-                        MaterialTheme.typography
-                            .bodyLarge,
-                    color =
-                        MaterialTheme.colorScheme
-                            .onSurfaceVariant
-                )
-            }
+            SettingsHeader()
         }
 
         item {
-            Surface(
-                modifier =
-                    Modifier.fillMaxWidth(),
-                shape =
-                    OreoShapeTokens.ExtraLarge,
-                color =
-                    MaterialTheme.colorScheme
-                        .surfaceContainerLowest,
-                border = BorderStroke(
-                    width = 1.dp,
-                    color =
-                        MaterialTheme.colorScheme
-                            .outlineVariant
-                            .copy(alpha = 0.35f)
-                )
+            SettingsSection(
+                title = "Device"
             ) {
-                Column(
-                    modifier = Modifier.padding(
-                        OreoSpacing.CardPadding
-                    ),
-                    verticalArrangement =
-                        Arrangement.spacedBy(
-                            OreoSpacing.StackMedium
-                        )
-                ) {
-                    Text(
-                        text = "Device",
-                        style =
-                            MaterialTheme.typography
-                                .headlineMedium
-                    )
-
-                    OutlinedTextField(
-                        value = friendlyName,
-                        onValueChange =
-                            onFriendlyNameChange,
-                        modifier =
-                            Modifier.fillMaxWidth(),
-                        label = {
-                            Text(
-                                text =
-                                    "Friendly device name"
-                            )
-                        },
-                        supportingText = {
-                            Text(
-                                text =
-                                    "${friendlyName.length}/40"
-                            )
-                        },
-                        singleLine = true
-                    )
-
-                    Button(
-                        onClick =
-                            onSaveFriendlyName,
-                        enabled =
-                            !state
-                                .isSavingFriendlyName,
-                        modifier =
-                            Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text =
-                                if (
-                                    state
-                                        .isSavingFriendlyName
-                                ) {
-                                    "Saving name..."
-                                } else {
-                                    "Save Device Name"
-                                }
-                        )
+                SettingsNavigationRow(
+                    title = "Friendly device name",
+                    supportingText =
+                        state.appSettings
+                            .friendlyDeviceName,
+                    onClick = {
+                        openDialog =
+                            SettingsDialog
+                                .FRIENDLY_NAME
                     }
+                )
 
-                    Text(
-                        text =
-                            state.savedAddress
-                                ?.let { address ->
-                                    "${address.host}:${address.port}"
-                                }
-                                ?: "No device is saved.",
-                        style =
-                            MaterialTheme.typography
-                                .bodyMedium,
-                        color =
-                            MaterialTheme.colorScheme
-                                .onSurfaceVariant
-                    )
+                SettingsDivider()
 
-                    OutlinedButton(
-                        onClick =
-                            onManageDevice,
-                        modifier =
-                            Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text =
-                                if (
-                                    state.savedAddress ==
-                                    null
-                                ) {
-                                    "Connect Device"
-                                } else {
-                                    "Manage Device"
-                                }
-                        )
-                    }
+                SettingsValueRow(
+                    title = "Saved device address",
+                    supportingText =
+                        state.savedAddress
+                            ?.displayAddress
+                            ?: "No device saved"
+                )
 
-                    if (
-                        state.savedAddress != null
-                    ) {
-                        OutlinedButton(
-                            onClick =
-                                onRemoveDevice,
-                            enabled =
-                                !state
-                                    .isRemovingDevice,
-                            colors =
-                                ButtonDefaults
-                                    .outlinedButtonColors(
-                                        contentColor =
-                                            MaterialTheme
-                                                .colorScheme
-                                                .error
-                                    ),
-                            modifier =
-                                Modifier.fillMaxWidth()
+                SettingsDivider()
+
+                SettingsNavigationRow(
+                    title = "Manage Device",
+                    supportingText =
+                        if (
+                            state.savedAddress == null
                         ) {
-                            Text(
-                                text =
-                                    if (
-                                        state
-                                            .isRemovingDevice
-                                    ) {
-                                        "Removing device..."
-                                    } else {
-                                        "Remove Saved Device"
-                                    }
-                            )
-                        }
-                    }
-                }
+                            "Connect an outlet or enter its address"
+                        } else {
+                            "Connection and saved-device options"
+                        },
+                    onClick = onManageDevice
+                )
             }
         }
 
         item {
-            Surface(
-                modifier =
-                    Modifier.fillMaxWidth(),
-                shape =
-                    OreoShapeTokens.ExtraLarge,
-                color =
-                    MaterialTheme.colorScheme
-                        .surfaceContainerLowest,
-                border = BorderStroke(
-                    width = 1.dp,
-                    color =
-                        MaterialTheme.colorScheme
-                            .outlineVariant
-                            .copy(alpha = 0.35f)
-                )
+            SettingsSection(
+                title = "Preferences"
             ) {
-                Column(
-                    modifier = Modifier.padding(
-                        OreoSpacing.CardPadding
-                    ),
-                    verticalArrangement =
-                        Arrangement.spacedBy(
-                            OreoSpacing.StackMedium
-                        )
-                ) {
-                    Text(
-                        text = "App preferences",
-                        style =
-                            MaterialTheme.typography
-                                .headlineMedium
-                    )
+                SettingsSwitchRow(
+                    title =
+                        "Find Outlets Automatically",
+                    supportingText =
+                        "Search for nearby outlets on your Wi-Fi network.",
+                    checked =
+                        state.appSettings
+                            .automaticDiscoveryEnabled,
+                    onCheckedChange =
+                        onAutomaticDiscoveryChange
+                )
 
-                    Row(
-                        modifier =
-                            Modifier.fillMaxWidth(),
-                        horizontalArrangement =
-                            Arrangement.spacedBy(
-                                OreoSpacing.StackMedium
-                            ),
-                        verticalAlignment =
-                            Alignment.CenterVertically
-                    ) {
-                        Column(
-                            modifier =
-                                Modifier.weight(1f),
-                            verticalArrangement =
-                                Arrangement.spacedBy(
-                                    OreoSpacing.Base
-                                )
-                        ) {
-                            Text(
-                                text =
-                                    "Automatic discovery",
-                                style =
-                                    MaterialTheme
-                                        .typography
-                                        .bodyLarge
-                            )
+                SettingsDivider()
 
-                            Text(
-                                text =
-                                    "Search for the outlet automatically on your Wi-Fi network.",
-                                style =
-                                    MaterialTheme
-                                        .typography
-                                        .bodyMedium,
-                                color =
-                                    MaterialTheme
-                                        .colorScheme
-                                        .onSurfaceVariant
-                            )
-                        }
-
-                        Switch(
-                            checked =
-                                state.appSettings
-                                    .automaticDiscoveryEnabled,
-                            onCheckedChange =
-                                onAutomaticDiscoveryChange
-                        )
+                SettingsNavigationRow(
+                    title = "Status Refresh",
+                    supportingText =
+                        pollingIntervalLabel(
+                            state.appSettings
+                                .pollingIntervalSeconds
+                        ),
+                    onClick = {
+                        openDialog =
+                            SettingsDialog
+                                .STATUS_REFRESH
                     }
+                )
 
-                    HorizontalDivider(
-                        color =
-                            MaterialTheme.colorScheme
-                                .outlineVariant
-                                .copy(alpha = 0.35f)
-                    )
+                SettingsDivider()
 
-                    PreferenceChoice(
-                        title = "Polling interval",
-                        description =
-                            "How often the app requests the latest outlet status.",
-                        options = listOf(
-                            2 to "2 s",
-                            5 to "5 s",
-                            10 to "10 s",
-                            30 to "30 s"
-                        ),
-                        selected =
+                SettingsNavigationRow(
+                    title = "Appearance",
+                    supportingText =
+                        appearanceLabel(
                             state.appSettings
-                                .pollingIntervalSeconds,
-                        onSelected =
-                            onPollingIntervalChange
-                    )
-
-                    HorizontalDivider(
-                        color =
-                            MaterialTheme.colorScheme
-                                .outlineVariant
-                                .copy(alpha = 0.35f)
-                    )
-
-                    PreferenceChoice(
-                        title = "Theme",
-                        description =
-                            "Choose how the app selects its colors.",
-                        options = listOf(
-                            AppThemePreference.SYSTEM to
-                                    "System",
-                            AppThemePreference.LIGHT to
-                                    "Light",
-                            AppThemePreference.DARK to
-                                    "Dark"
+                                .themePreference
                         ),
-                        selected =
+                    onClick = {
+                        openDialog =
+                            SettingsDialog
+                                .APPEARANCE
+                    }
+                )
+
+                SettingsDivider()
+
+                SettingsNavigationRow(
+                    title = "Time Format",
+                    supportingText =
+                        timeFormatLabel(
                             state.appSettings
-                                .themePreference,
-                        onSelected = onThemeChange
-                    )
-
-                    HorizontalDivider(
-                        color =
-                            MaterialTheme.colorScheme
-                                .outlineVariant
-                                .copy(alpha = 0.35f)
-                    )
-
-                    PreferenceChoice(
-                        title = "Time format",
-                        description =
-                            "Choose how times are displayed in the app.",
-                        options = listOf(
-                            TimeFormatPreference
-                                .TWELVE_HOUR to
-                                    "12-hour",
-                            TimeFormatPreference
-                                .TWENTY_FOUR_HOUR to
-                                    "24-hour"
+                                .timeFormatPreference
                         ),
-                        selected =
-                            state.appSettings
-                                .timeFormatPreference,
-                        onSelected =
-                            onTimeFormatChange
-                    )
-                }
+                    onClick = {
+                        openDialog =
+                            SettingsDialog
+                                .TIME_FORMAT
+                    }
+                )
             }
         }
 
         item {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = OreoShapeTokens.ExtraLarge,
-                color =
-                    MaterialTheme.colorScheme
-                        .surfaceContainerLowest,
-                border = BorderStroke(
-                    width = 1.dp,
-                    color =
-                        MaterialTheme.colorScheme
-                            .outlineVariant
-                            .copy(alpha = 0.35f)
-                )
+            SettingsSection(
+                title = "About"
             ) {
-                Column(
-                    modifier = Modifier.padding(
-                        OreoSpacing.CardPadding
-                    ),
-                    verticalArrangement =
-                        Arrangement.spacedBy(
-                            OreoSpacing.StackMedium
-                        )
-                ) {
-                    Text(
-                        text = "About",
-                        style =
-                            MaterialTheme.typography
-                                .headlineMedium
-                    )
-
-                    Text(
-                        text =
-                            "View the app version and the firmware version reported by your outlet.",
-                        style =
-                            MaterialTheme.typography
-                                .bodyMedium,
-                        color =
-                            MaterialTheme.colorScheme
-                                .onSurfaceVariant
-                    )
-
-                    OutlinedButton(
-                        onClick = onAbout,
-                        modifier =
-                            Modifier.fillMaxWidth()
-                    ) {
-                        Text(text = "Open About")
-                    }
-                }
+                SettingsNavigationRow(
+                    title = "About Oreo Smart Outlet",
+                    supportingText =
+                        "App and firmware version information",
+                    onClick = onAbout
+                )
             }
         }
 
         item {
-            Surface(
-                modifier =
-                    Modifier.fillMaxWidth(),
-                shape =
-                    OreoShapeTokens.ExtraLarge,
-                color =
+            SettingsSection(
+                title = "Reset",
+                borderColor =
                     MaterialTheme.colorScheme
-                        .surfaceContainerLowest,
-                border = BorderStroke(
-                    width = 1.dp,
-                    color =
-                        MaterialTheme.colorScheme
-                            .error
-                            .copy(alpha = 0.25f)
-                )
+                        .error
+                        .copy(alpha = 0.25f)
             ) {
-                Column(
-                    modifier = Modifier.padding(
-                        OreoSpacing.CardPadding
-                    ),
-                    verticalArrangement =
-                        Arrangement.spacedBy(
-                            OreoSpacing.StackMedium
-                        )
-                ) {
-                    Text(
-                        text = "Reset",
-                        style =
-                            MaterialTheme.typography
-                                .headlineMedium
-                    )
-
-                    Text(
-                        text =
-                            "Restore app preferences to their defaults without removing the saved outlet.",
-                        style =
-                            MaterialTheme.typography
-                                .bodyMedium,
-                        color =
-                            MaterialTheme.colorScheme
-                                .onSurfaceVariant
-                    )
-
-                    OutlinedButton(
-                        onClick =
-                            onResetSettings,
-                        enabled =
-                            !state
-                                .isResettingSettings,
-                        colors =
-                            ButtonDefaults
-                                .outlinedButtonColors(
-                                    contentColor =
-                                        MaterialTheme
-                                            .colorScheme
-                                            .error
-                                ),
-                        modifier =
-                            Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text =
-                                if (
-                                    state
-                                        .isResettingSettings
-                                ) {
-                                    "Resetting..."
-                                } else {
-                                    "Reset App Settings"
-                                }
-                        )
-                    }
-                }
+                SettingsNavigationRow(
+                    title = "Reset App Settings",
+                    supportingText =
+                        "Restore app preferences without forgetting the saved outlet.",
+                    onClick = {
+                        openDialog =
+                            SettingsDialog.RESET
+                    },
+                    enabled =
+                        !state.isResettingSettings,
+                    titleColor =
+                        MaterialTheme.colorScheme
+                            .error,
+                    showChevron = false
+                )
             }
         }
 
         val feedback =
-            state.error
-                ?: state.message
+            state.error ?: state.message
 
         feedback?.let { message ->
             item {
@@ -748,34 +284,165 @@ fun SettingsScreen(
                         MaterialTheme.typography
                             .bodyMedium,
                     color =
-                        if (
-                            state.error != null
-                        ) {
+                        if (state.error != null) {
                             MaterialTheme
-                                .colorScheme
-                                .error
+                                .colorScheme.error
                         } else {
                             MaterialTheme
-                                .colorScheme
-                                .primary
+                                .colorScheme.primary
                         },
                     textAlign = TextAlign.End,
-                    modifier =
-                        Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
-}
+    }
+
+    when (openDialog) {
+        SettingsDialog.FRIENDLY_NAME ->
+            FriendlyDeviceNameDialog(
+                currentName =
+                    state.appSettings
+                        .friendlyDeviceName,
+                isSaving =
+                    state.isSavingFriendlyName,
+                onDismiss = {
+                    openDialog = null
+                },
+                onSave = { name ->
+                    openDialog = null
+                    onSaveFriendlyName(name)
+                }
+            )
+
+        SettingsDialog.STATUS_REFRESH ->
+            SingleChoiceDialog(
+                title = "Status Refresh",
+                options =
+                    listOf(
+                        2 to "Every 2 seconds",
+                        5 to "Every 5 seconds",
+                        10 to "Every 10 seconds",
+                        30 to "Every 30 seconds"
+                    ),
+                selected =
+                    state.appSettings
+                        .pollingIntervalSeconds,
+                onDismiss = {
+                    openDialog = null
+                },
+                onSelected = { seconds ->
+                    openDialog = null
+                    onPollingIntervalChange(
+                        seconds
+                    )
+                }
+            )
+
+        SettingsDialog.APPEARANCE ->
+            SingleChoiceDialog(
+                title = "Appearance",
+                options =
+                    listOf(
+                        AppThemePreference.SYSTEM to
+                                "Use Device Setting",
+                        AppThemePreference.LIGHT to
+                                "Light",
+                        AppThemePreference.DARK to
+                                "Dark"
+                    ),
+                selected =
+                    state.appSettings
+                        .themePreference,
+                onDismiss = {
+                    openDialog = null
+                },
+                onSelected = { preference ->
+                    openDialog = null
+                    onThemeChange(preference)
+                }
+            )
+
+        SettingsDialog.TIME_FORMAT ->
+            SingleChoiceDialog(
+                title = "Time Format",
+                options =
+                    listOf(
+                        TimeFormatPreference
+                            .TWELVE_HOUR to
+                                "12-hour",
+                        TimeFormatPreference
+                            .TWENTY_FOUR_HOUR to
+                                "24-hour"
+                    ),
+                selected =
+                    state.appSettings
+                        .timeFormatPreference,
+                onDismiss = {
+                    openDialog = null
+                },
+                onSelected = { preference ->
+                    openDialog = null
+                    onTimeFormatChange(
+                        preference
+                    )
+                }
+            )
+
+        SettingsDialog.RESET ->
+            AlertDialog(
+                onDismissRequest = {
+                    if (
+                        !state.isResettingSettings
+                    ) {
+                        openDialog = null
+                    }
+                },
+                title = {
+                    Text(
+                        text =
+                            "Reset app settings?"
+                    )
+                },
+                text = {
+                    Text(
+                        text =
+                            "Appearance, time format, discovery, status refresh, device name, and outlet names will return to their defaults. The saved device will remain connected."
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            openDialog = null
+                            onResetSettings()
+                        },
+                        enabled =
+                            !state
+                                .isResettingSettings
+                    ) {
+                        Text(text = "Reset")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            openDialog = null
+                        },
+                        enabled =
+                            !state
+                                .isResettingSettings
+                    ) {
+                        Text(text = "Cancel")
+                    }
+                }
+            )
+
+        null -> Unit
+    }
 }
 
 @Composable
-private fun <T> PreferenceChoice(
-    title: String,
-    description: String,
-    options: List<Pair<T, String>>,
-    selected: T,
-    onSelected: (T) -> Unit
-) {
+private fun SettingsHeader() {
     Column(
         verticalArrangement =
             Arrangement.spacedBy(
@@ -783,14 +450,223 @@ private fun <T> PreferenceChoice(
             )
     ) {
         Text(
-            text = title,
+            text = "Settings",
             style =
                 MaterialTheme.typography
-                    .bodyLarge
+                    .headlineLarge,
+            color =
+                MaterialTheme.colorScheme
+                    .onBackground
         )
 
         Text(
-            text = description,
+            text =
+                "Manage your outlet and app preferences.",
+            style =
+                MaterialTheme.typography
+                    .bodyLarge,
+            color =
+                MaterialTheme.colorScheme
+                    .onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun SettingsSection(
+    title: String,
+    borderColor: Color =
+        MaterialTheme.colorScheme
+            .outlineVariant
+            .copy(alpha = 0.35f),
+    content:
+        @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = OreoShapeTokens.ExtraLarge,
+        color =
+            MaterialTheme.colorScheme
+                .surfaceContainerLowest,
+        border =
+            BorderStroke(
+                width = 1.dp,
+                color = borderColor
+            )
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    horizontal =
+                        OreoSpacing.CardPadding,
+                    vertical =
+                        OreoSpacing.StackMedium
+                )
+        ) {
+            Text(
+                text = title,
+                style =
+                    MaterialTheme.typography
+                        .headlineMedium,
+                modifier =
+                    Modifier.padding(
+                        bottom =
+                            OreoSpacing.StackSmall
+                    )
+            )
+
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SettingsNavigationRow(
+    title: String,
+    supportingText: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    titleColor: Color =
+        MaterialTheme.colorScheme.onSurface,
+    showChevron: Boolean = true
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        color = Color.Transparent,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(
+                        minHeight = 48.dp
+                    )
+                    .padding(
+                        vertical =
+                            OreoSpacing.StackSmall
+                    ),
+            horizontalArrangement =
+                Arrangement.spacedBy(
+                    OreoSpacing.StackMedium
+                ),
+            verticalAlignment =
+                Alignment.CenterVertically
+        ) {
+            SettingsRowText(
+                title = title,
+                supportingText =
+                    supportingText,
+                titleColor = titleColor,
+                modifier = Modifier.weight(1f)
+            )
+
+            if (showChevron) {
+                Icon(
+                    imageVector =
+                        Icons.Filled
+                            .KeyboardArrowRight,
+                    contentDescription = null,
+                    tint =
+                        MaterialTheme.colorScheme
+                            .onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsValueRow(
+    title: String,
+    supportingText: String
+) {
+    SettingsRowText(
+        title = title,
+        supportingText = supportingText,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .defaultMinSize(
+                    minHeight = 48.dp
+                )
+                .padding(
+                    vertical =
+                        OreoSpacing.StackSmall
+                )
+    )
+}
+
+@Composable
+private fun SettingsSwitchRow(
+    title: String,
+    supportingText: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = checked,
+                    role = Role.Switch,
+                    onValueChange =
+                        onCheckedChange
+                )
+                .defaultMinSize(
+                    minHeight = 48.dp
+                )
+                .padding(
+                    vertical =
+                        OreoSpacing.StackSmall
+                ),
+        horizontalArrangement =
+            Arrangement.spacedBy(
+                OreoSpacing.StackMedium
+            ),
+        verticalAlignment =
+            Alignment.CenterVertically
+    ) {
+        SettingsRowText(
+            title = title,
+            supportingText = supportingText,
+            modifier = Modifier.weight(1f)
+        )
+
+        Switch(
+            checked = checked,
+            onCheckedChange = null
+        )
+    }
+}
+
+@Composable
+private fun SettingsRowText(
+    title: String,
+    supportingText: String,
+    modifier: Modifier = Modifier,
+    titleColor: Color =
+        MaterialTheme.colorScheme.onSurface
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement =
+            Arrangement.spacedBy(
+                OreoSpacing.Base
+            )
+    ) {
+        Text(
+            text = title,
+            style =
+                MaterialTheme.typography
+                    .bodyLarge,
+            color = titleColor
+        )
+
+        Text(
+            text = supportingText,
             style =
                 MaterialTheme.typography
                     .bodyMedium,
@@ -798,39 +674,269 @@ private fun <T> PreferenceChoice(
                 MaterialTheme.colorScheme
                     .onSurfaceVariant
         )
+    }
+}
 
-        SingleChoiceSegmentedButtonRow(
-            modifier =
-                Modifier.fillMaxWidth()
-        ) {
-            options.forEachIndexed {
-                    index,
-                    option ->
+@Composable
+private fun SettingsDivider() {
+    HorizontalDivider(
+        color =
+            MaterialTheme.colorScheme
+                .outlineVariant
+                .copy(alpha = 0.35f)
+    )
+}
 
-                SegmentedButton(
-                    selected =
-                        selected ==
-                                option.first,
-                    onClick = {
-                        onSelected(
-                            option.first
-                        )
-                    },
-                    shape =
-                        SegmentedButtonDefaults
-                            .itemShape(
-                                index = index,
-                                count =
-                                    options.size
-                            ),
-                    label = {
-                        Text(
-                            text =
-                                option.second
-                        )
-                    }
+@Composable
+private fun FriendlyDeviceNameDialog(
+    currentName: String,
+    isSaving: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var name by rememberSaveable(currentName) {
+        mutableStateOf(currentName)
+    }
+
+    val trimmedName = name.trim()
+
+    val validationMessage =
+        when {
+            trimmedName.isBlank() ->
+                "Enter a device name."
+
+            trimmedName.length >
+                    AppSettings
+                        .MAX_FRIENDLY_DEVICE_NAME_LENGTH ->
+                "Use 40 characters or fewer."
+
+            else -> null
+        }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Friendly device name"
+            )
+        },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = {
+                    name = it
+                },
+                label = {
+                    Text(text = "Device name")
+                },
+                supportingText = {
+                    Text(
+                        text =
+                            validationMessage
+                                ?: "${name.length}/40"
+                    )
+                },
+                isError =
+                    validationMessage != null,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onSave(trimmedName)
+                },
+                enabled =
+                    !isSaving &&
+                            validationMessage == null
+            ) {
+                Text(
+                    text =
+                        if (isSaving) {
+                            "Saving..."
+                        } else {
+                            "Save"
+                        }
                 )
             }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isSaving
+            ) {
+                Text(text = "Cancel")
+            }
         }
+    )
+}
+
+@Composable
+private fun <T> SingleChoiceDialog(
+    title: String,
+    options: List<Pair<T, String>>,
+    selected: T,
+    onDismiss: () -> Unit,
+    onSelected: (T) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(text = title)
+        },
+        text = {
+            Column {
+                options.forEach { option ->
+                    val isSelected =
+                        option.first == selected
+
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected =
+                                        isSelected,
+                                    role =
+                                        Role.RadioButton,
+                                    onClick = {
+                                        onSelected(
+                                            option.first
+                                        )
+                                    }
+                                )
+                                .defaultMinSize(
+                                    minHeight = 48.dp
+                                )
+                                .padding(
+                                    vertical =
+                                        OreoSpacing.Base
+                                ),
+                        verticalAlignment =
+                            Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = isSelected,
+                            onClick = null
+                        )
+
+                        Text(
+                            text = option.second,
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .bodyLarge,
+                            modifier =
+                                Modifier.padding(
+                                    start =
+                                        OreoSpacing
+                                            .StackSmall
+                                )
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onDismiss
+            ) {
+                Text(text = "Cancel")
+            }
+        }
+    )
+}
+
+internal fun pollingIntervalLabel(
+    seconds: Int
+): String {
+    return "Every $seconds seconds"
+}
+
+internal fun appearanceLabel(
+    preference: AppThemePreference
+): String {
+    return when (preference) {
+        AppThemePreference.SYSTEM ->
+            "Use Device Setting"
+
+        AppThemePreference.LIGHT ->
+            "Light"
+
+        AppThemePreference.DARK ->
+            "Dark"
+    }
+}
+
+internal fun timeFormatLabel(
+    preference: TimeFormatPreference
+): String {
+    return when (preference) {
+        TimeFormatPreference.TWELVE_HOUR ->
+            "12-hour"
+
+        TimeFormatPreference
+            .TWENTY_FOUR_HOUR ->
+            "24-hour"
+    }
+}
+
+@Preview(
+    name = "Modern Settings Light",
+    widthDp = 360,
+    showBackground = true
+)
+@Composable
+private fun ModernSettingsLightPreview() {
+    OreoSmartOutletTheme(
+        darkTheme = false
+    ) {
+        SettingsScreenPreviewContent()
+    }
+}
+
+@Preview(
+    name = "Modern Settings Large Font",
+    widthDp = 360,
+    fontScale = 2f,
+    showBackground = true,
+    backgroundColor = 0xFF0F172A
+)
+@Composable
+private fun ModernSettingsLargeFontPreview() {
+    OreoSmartOutletTheme(
+        darkTheme = true
+    ) {
+        SettingsScreenPreviewContent()
+    }
+}
+
+@Composable
+private fun SettingsScreenPreviewContent() {
+    Surface(
+        color =
+            MaterialTheme.colorScheme
+                .background
+    ) {
+        SettingsScreen(
+            state =
+                SettingsUiState(
+                    savedAddress =
+                        DeviceAddress(
+                            host =
+                                "192.168.8.113",
+                            port = 8080
+                        )
+                ),
+            onSaveFriendlyName = {},
+            onAutomaticDiscoveryChange = {},
+            onPollingIntervalChange = {},
+            onThemeChange = {},
+            onTimeFormatChange = {},
+            onManageDevice = {},
+            onResetSettings = {},
+            onAbout = {}
+        )
     }
 }

@@ -337,8 +337,6 @@ private fun MainAppNavHost(
                 SettingsRoute(
                     onManageDevice =
                         onManageDevice,
-                    onDeviceRemoved =
-                        onSavedDeviceRemoved,
                     onAbout = {
                         navController.navigate(
                             MainRoutes.ABOUT

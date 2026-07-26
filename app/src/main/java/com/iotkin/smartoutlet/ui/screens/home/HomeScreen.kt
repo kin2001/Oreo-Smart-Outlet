@@ -182,12 +182,16 @@ fun HomeScreen(
                         scheduleSummary =
                             scheduleSummary(
                                 status.relay1
-                                    .schedule
+                                    .schedule,
+                                appSettings
+                                    .timeFormatPreference
                             ),
                         lastUpdated =
                             formatLastAppRefresh(
                                 statusState
-                                    .lastSuccessfulRefreshEpochMillis
+                                    .lastSuccessfulRefreshEpochMillis,
+                                appSettings
+                                    .timeFormatPreference
                             ),
                         onToggle = {
                                 desiredState ->
@@ -234,12 +238,16 @@ fun HomeScreen(
                         scheduleSummary =
                             scheduleSummary(
                                 status.relay2
-                                    .schedule
+                                    .schedule,
+                                appSettings
+                                    .timeFormatPreference
                             ),
                         lastUpdated =
                             formatLastAppRefresh(
                                 statusState
-                                    .lastSuccessfulRefreshEpochMillis
+                                    .lastSuccessfulRefreshEpochMillis,
+                                appSettings
+                                    .timeFormatPreference
                             ),
                         onToggle = {
                                 desiredState ->
@@ -646,7 +654,9 @@ private fun HomeUnavailableCard(
 }
 
 internal fun formatLastAppRefresh(
-    epochMillis: Long?
+    epochMillis: Long?,
+    timeFormatPreference:
+        TimeFormatPreference
 ): String {
     if (epochMillis == null) {
         return "Not refreshed"
@@ -654,7 +664,15 @@ internal fun formatLastAppRefresh(
 
     val formatter =
         DateTimeFormatter.ofPattern(
-            "h:mm a",
+            when (timeFormatPreference) {
+                TimeFormatPreference
+                    .TWELVE_HOUR ->
+                    "h:mm a"
+
+                TimeFormatPreference
+                    .TWENTY_FOUR_HOUR ->
+                    "HH:mm"
+            },
             Locale.US
         )
 
@@ -666,25 +684,43 @@ internal fun formatLastAppRefresh(
 }
 
 internal fun scheduleSummary(
-    schedule: RelayScheduleResponse
+    schedule: RelayScheduleResponse,
+    timeFormatPreference:
+        TimeFormatPreference
 ): String {
     if (!schedule.enabled) {
         return "Schedule disabled"
     }
 
-    return "${formatScheduleClock(schedule.onHour, schedule.onMinute)} – " +
+    return "${formatScheduleClock(schedule.onHour, schedule.onMinute, timeFormatPreference)} – " +
             formatScheduleClock(
                 schedule.offHour,
-                schedule.offMinute
+                schedule.offMinute,
+                timeFormatPreference
             )
 }
 
 internal fun formatScheduleClock(
     hour: Int,
-    minute: Int
+    minute: Int,
+    timeFormatPreference:
+        TimeFormatPreference
 ): String {
     val normalizedHour =
         hour.coerceIn(0, 23)
+
+    if (
+        timeFormatPreference ==
+        TimeFormatPreference
+            .TWENTY_FOUR_HOUR
+    ) {
+        return String.format(
+            Locale.US,
+            "%02d:%02d",
+            normalizedHour,
+            minute.coerceIn(0, 59)
+        )
+    }
 
     val suffix =
         if (normalizedHour < 12) {

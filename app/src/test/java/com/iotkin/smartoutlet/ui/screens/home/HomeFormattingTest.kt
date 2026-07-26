@@ -29,4 +29,29 @@ class HomeFormattingTest {
             ).first
         )
     }
+
+    @Test
+    fun scheduleClockUsesSavedTimeFormat() {
+        assertEquals(
+            "8:05 PM",
+            formatScheduleClock(
+                hour = 20,
+                minute = 5,
+                timeFormatPreference =
+                    TimeFormatPreference
+                        .TWELVE_HOUR
+            )
+        )
+
+        assertEquals(
+            "20:05",
+            formatScheduleClock(
+                hour = 20,
+                minute = 5,
+                timeFormatPreference =
+                    TimeFormatPreference
+                        .TWENTY_FOUR_HOUR
+            )
+        )
+    }
 }
