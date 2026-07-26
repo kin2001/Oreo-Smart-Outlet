@@ -197,7 +197,7 @@ fun SettingsRoute(
             text = {
                 Text(
                     text =
-                        "Theme, time format, discovery, polling interval, and friendly name will return to their defaults. The saved device will remain connected."
+                        "Theme, time format, discovery, polling interval, device name, and outlet names will return to their defaults. The saved device will remain connected."
                 )
             },
             confirmButton = {

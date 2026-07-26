@@ -10,7 +10,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 enum class AppDestination(
     val route: String,
     val label: String,
-    val icon: ImageVector
+    val icon: ImageVector,
+    val iconContentDescription: String = label
 ) {
     HOME(
         route = "home",
@@ -24,8 +25,9 @@ enum class AppDestination(
     ),
     DIAGNOSTICS(
         route = "diagnostics",
-        label = "Diagnostics",
-        icon = Icons.Filled.Info
+        label = "Status",
+        icon = Icons.Filled.Info,
+        iconContentDescription = "Diagnostics"
     ),
     SETTINGS(
         route = "settings",

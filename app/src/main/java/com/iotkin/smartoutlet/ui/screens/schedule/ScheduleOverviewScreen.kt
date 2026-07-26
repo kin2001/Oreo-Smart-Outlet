@@ -2,6 +2,7 @@ package com.iotkin.smartoutlet.ui.screens.schedule
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -18,8 +19,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iotkin.smartoutlet.data.model.RelayNumber
@@ -29,6 +32,7 @@ import com.iotkin.smartoutlet.data.repository.DeviceConnectionState
 import com.iotkin.smartoutlet.data.repository.DeviceStatusRepositoryState
 import com.iotkin.smartoutlet.ui.screens.diagnostics.DiagnosticsViewModel
 import com.iotkin.smartoutlet.ui.theme.OreoShapeTokens
+import com.iotkin.smartoutlet.ui.theme.OreoSmartOutletTheme
 import com.iotkin.smartoutlet.ui.theme.OreoSpacing
 import java.time.Instant
 import java.time.ZoneId
@@ -47,8 +51,17 @@ fun ScheduleOverviewRoute(
     val statusState by viewModel.statusState
         .collectAsStateWithLifecycle()
 
+    val appSettings by viewModel.appSettings
+        .collectAsStateWithLifecycle()
+
     ScheduleOverviewScreen(
         statusState = statusState,
+        outlet1Name =
+            appSettings
+                .outlet1FriendlyName,
+        outlet2Name =
+            appSettings
+                .outlet2FriendlyName,
         onEditSchedule = onEditSchedule,
         modifier = modifier
     )
@@ -57,6 +70,8 @@ fun ScheduleOverviewRoute(
 @Composable
 fun ScheduleOverviewScreen(
     statusState: DeviceStatusRepositoryState,
+    outlet1Name: String,
+    outlet2Name: String,
     onEditSchedule: (RelayNumber) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -107,6 +122,7 @@ fun ScheduleOverviewScreen(
                 item {
                     OutletScheduleCard(
                         relay = RelayNumber.RELAY_1,
+                        outletName = outlet1Name,
                         relayStatus = status.relay1,
                         deviceAvailable = deviceAvailable,
                         lastRefreshEpochMillis =
@@ -123,6 +139,7 @@ fun ScheduleOverviewScreen(
                 item {
                     OutletScheduleCard(
                         relay = RelayNumber.RELAY_2,
+                        outletName = outlet2Name,
                         relayStatus = status.relay2,
                         deviceAvailable = deviceAvailable,
                         lastRefreshEpochMillis =
@@ -180,62 +197,58 @@ fun ScheduleOverviewScreen(
 private fun ScheduleHeader(
     statusState: DeviceStatusRepositoryState
 ) {
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement =
-            Arrangement.SpaceBetween,
-        verticalAlignment =
-            Alignment.CenterVertically
+        verticalArrangement =
+            Arrangement.spacedBy(
+                OreoSpacing.StackSmall
+            )
     ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement =
-                Arrangement.spacedBy(
-                    OreoSpacing.StackSmall
-                )
-        ) {
-            Text(
-                text = "Schedules",
-                style =
-                    MaterialTheme.typography
-                        .headlineLarge,
-                color =
-                    MaterialTheme.colorScheme
-                        .onBackground
-            )
+        Text(
+            text = "Schedules",
+            style =
+                MaterialTheme.typography
+                    .headlineLarge,
+            color =
+                MaterialTheme.colorScheme
+                    .onBackground
+        )
 
-            Text(
-                text =
-                    "Set independent ON and OFF times for each outlet.",
+        Text(
+            text =
+                "Set independent ON and OFF times for each outlet.",
 
-                style =
-                    MaterialTheme.typography
-                        .bodyLarge,
-                color =
-                    MaterialTheme.colorScheme
-                        .onSurfaceVariant
-            )
-            Text(
-                text =
-                    statusState.connectionDescription(),
-                style =
-                    MaterialTheme.typography
-                        .bodySmall,
-                color =
-                    MaterialTheme.colorScheme
-                        .onSurfaceVariant
-            )
-        }
+            style =
+                MaterialTheme.typography
+                    .bodyLarge,
+            color =
+                MaterialTheme.colorScheme
+                    .onSurfaceVariant
+        )
+
+        Text(
+            text =
+                statusState.connectionDescription(),
+            style =
+                MaterialTheme.typography
+                    .bodySmall,
+            color =
+                MaterialTheme.colorScheme
+                    .onSurfaceVariant
+        )
 
         ScheduleConnectionBadge(
-            statusState = statusState
+            statusState = statusState,
+            modifier =
+                Modifier.align(Alignment.End)
         )
     }
 }
 
 @Composable
 private fun ScheduleConnectionBadge(
-    statusState: DeviceStatusRepositoryState
+    statusState: DeviceStatusRepositoryState,
+    modifier: Modifier = Modifier
 ) {
     val label =
         statusState.connectionLabel()
@@ -258,6 +271,7 @@ private fun ScheduleConnectionBadge(
         }
 
     Surface(
+        modifier = modifier,
         shape = OreoShapeTokens.ExtraLarge,
         color = badgeColor.copy(
             alpha = 0.10f
@@ -288,6 +302,7 @@ private fun ScheduleConnectionBadge(
 @Composable
 private fun OutletScheduleCard(
     relay: RelayNumber,
+    outletName: String,
     relayStatus: RelayStatusResponse,
     deviceAvailable: Boolean,
     lastRefreshEpochMillis: Long?,
@@ -326,39 +341,31 @@ private fun OutletScheduleCard(
                 verticalAlignment =
                     Alignment.CenterVertically
             ) {
-                Column(
-                    verticalArrangement =
-                        Arrangement.spacedBy(
-                            OreoSpacing.StackSmall
-                        )
-                ) {
-                    Text(
-                        text =
-                            "OUTLET ${relay.apiValue}",
-                        style =
-                            MaterialTheme.typography
-                                .labelLarge,
-                        color =
-                            MaterialTheme.colorScheme
-                                .primary
-                    )
-
-                    Text(
-                        text =
-                            "Outlet ${relay.apiValue}",
-                        style =
-                            MaterialTheme.typography
-                                .headlineMedium,
-                        color =
-                            MaterialTheme.colorScheme
-                                .onSurface
-                    )
-                }
+                Text(
+                    text =
+                        "OUTLET ${relay.apiValue}",
+                    style =
+                        MaterialTheme.typography
+                            .labelLarge,
+                    color =
+                        MaterialTheme.colorScheme
+                            .primary
+                )
 
                 ScheduleEnabledBadge(
                     enabled = schedule.enabled
                 )
             }
+
+            Text(
+                text = outletName,
+                style =
+                    MaterialTheme.typography
+                        .headlineMedium,
+                color =
+                    MaterialTheme.colorScheme
+                        .onSurface
+            )
 
             ScheduleTimeRow(
                 label = "Turn on",
@@ -418,8 +425,7 @@ private fun OutletScheduleCard(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text =
-                        "Edit Outlet ${relay.apiValue} Schedule"
+                    text = "Edit schedule"
                 )
             }
         }
@@ -470,38 +476,79 @@ private fun ScheduleTimeRow(
     label: String,
     value: String
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement =
-            Arrangement.spacedBy(
-                OreoSpacing.StackMedium
-            ),
-        verticalAlignment =
-            Alignment.CenterVertically
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Text(
-            text = label,
-            style =
-                MaterialTheme.typography
-                    .bodyLarge,
-            color =
-                MaterialTheme.colorScheme
-                    .onSurfaceVariant,
-            modifier = Modifier.weight(1f)
-        )
+        val useStackedLayout =
+            maxWidth /
+                    LocalDensity.current.fontScale <
+                    300.dp
 
-        Text(
-            text = value,
-            style =
-                MaterialTheme.typography
-                    .titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.End,
-            color =
-                MaterialTheme.colorScheme
-                    .onSurface,
-            modifier = Modifier.weight(1f)
-        )
+        if (useStackedLayout) {
+            Column(
+                verticalArrangement =
+                    Arrangement.spacedBy(
+                        OreoSpacing.Base
+                    )
+            ) {
+                Text(
+                    text = label,
+                    style =
+                        MaterialTheme.typography
+                            .bodyLarge,
+                    color =
+                        MaterialTheme.colorScheme
+                            .onSurfaceVariant
+                )
+
+                Text(
+                    text = value,
+                    style =
+                        MaterialTheme.typography
+                            .titleMedium,
+                    fontWeight =
+                        FontWeight.SemiBold,
+                    color =
+                        MaterialTheme.colorScheme
+                            .onSurface
+                )
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                    Arrangement.spacedBy(
+                        OreoSpacing.StackMedium
+                    ),
+                verticalAlignment =
+                    Alignment.CenterVertically
+            ) {
+                Text(
+                    text = label,
+                    style =
+                        MaterialTheme.typography
+                            .bodyLarge,
+                    color =
+                        MaterialTheme.colorScheme
+                            .onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Text(
+                    text = value,
+                    style =
+                        MaterialTheme.typography
+                            .titleMedium,
+                    fontWeight =
+                        FontWeight.SemiBold,
+                    textAlign = TextAlign.End,
+                    color =
+                        MaterialTheme.colorScheme
+                            .onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
     }
 }
 
@@ -636,4 +683,48 @@ private fun formatScheduleRefresh(
             .format(formatter)
 
     return "Last app refresh: $formatted"
+}
+
+@Preview(
+    name = "Schedule Card Large Font",
+    widthDp = 360,
+    fontScale = 2f,
+    showBackground = true,
+    backgroundColor = 0xFF0F172A
+)
+@Composable
+private fun OutletScheduleCardLargeFontPreview() {
+    OreoSmartOutletTheme(
+        darkTheme = true
+    ) {
+        Surface(
+            modifier =
+                Modifier.padding(
+                    OreoSpacing.ScreenMargin
+                ),
+            color =
+                MaterialTheme.colorScheme
+                    .background
+        ) {
+            OutletScheduleCard(
+                relay = RelayNumber.RELAY_1,
+                outletName = "Mosquito Repellent",
+                relayStatus =
+                    RelayStatusResponse(
+                        state = false,
+                        schedule =
+                            RelayScheduleResponse(
+                                enabled = true,
+                                onHour = 20,
+                                onMinute = 0,
+                                offHour = 5,
+                                offMinute = 0
+                            )
+                    ),
+                deviceAvailable = true,
+                lastRefreshEpochMillis = null,
+                onEdit = {}
+            )
+        }
+    }
 }

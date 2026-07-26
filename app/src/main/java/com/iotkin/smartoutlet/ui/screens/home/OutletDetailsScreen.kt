@@ -48,6 +48,9 @@ fun OutletDetailsRoute(
     val relayControlState by viewModel.relayControlState
         .collectAsStateWithLifecycle()
 
+    val appSettings by viewModel.appSettings
+        .collectAsStateWithLifecycle()
+
     LaunchedEffect(
         relayControlState.message,
         relayControlState.error
@@ -85,6 +88,9 @@ fun OutletDetailsRoute(
     OutletDetailsScreen(
         statusState = statusState,
         relay = relay,
+        outletName =
+            appSettings
+                .outletFriendlyName(relay),
         relayStatus = relayStatus,
         controlsEnabled =
             controlsEnabled,
@@ -119,6 +125,7 @@ fun OutletDetailsRoute(
 @Composable
 fun OutletDetailsScreen(
     relay: RelayNumber,
+    outletName: String,
     relayStatus: RelayStatusResponse?,
     statusState:
     DeviceStatusRepositoryState,
@@ -165,8 +172,7 @@ fun OutletDetailsScreen(
                     )
             ) {
                 Text(
-                    text =
-                        "Outlet ${relay.apiValue}",
+                    text = outletName,
                     style =
                         MaterialTheme.typography
                             .headlineLarge,

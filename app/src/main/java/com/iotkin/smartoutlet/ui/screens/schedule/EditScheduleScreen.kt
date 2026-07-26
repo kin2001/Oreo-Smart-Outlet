@@ -51,6 +51,9 @@ fun EditScheduleRoute(
     val statusState by viewModel.statusState
         .collectAsStateWithLifecycle()
 
+    val appSettings by viewModel.appSettings
+        .collectAsStateWithLifecycle()
+
     LaunchedEffect(relay) {
         viewModel.loadScheduleEditor(relay)
     }
@@ -89,6 +92,9 @@ fun EditScheduleRoute(
 
     EditScheduleScreen(
         relay = relay,
+        outletName =
+            appSettings
+                .outletFriendlyName(relay),
         state = editorState,
         statusState = statusState,
         deviceAvailable = deviceAvailable,
@@ -117,6 +123,7 @@ fun EditScheduleRoute(
 @Composable
 fun EditScheduleScreen(
     relay: RelayNumber,
+    outletName: String,
     state: ScheduleEditorUiState,
     statusState:
     DeviceStatusRepositoryState,
@@ -168,7 +175,7 @@ fun EditScheduleScreen(
             ) {
                 Text(
                     text =
-                        "Outlet ${relay.apiValue} Schedule",
+                        "$outletName Schedule",
                     style =
                         MaterialTheme.typography
                             .headlineLarge,

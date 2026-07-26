@@ -38,8 +38,8 @@ user's tests.
 
 ## Work in Batches
 
-Do not implement an entire phase in one pass, and do not implement every
-tracker checkbox as a separate change.
+Plan and implement each phase as a sequence of coherent batches. Do not
+implement every tracker checkbox as a separate change.
 
 Group tasks into the smallest coherent batch based on:
 
@@ -60,8 +60,10 @@ Before editing, tell the user:
 - which files will be created; and
 - what will deliberately remain unchanged.
 
-Implement only that batch, explain it, provide testing instructions, and stop.
-Do not begin the next batch until the user reports the test result.
+Implement one batch at a time, but continue automatically through every batch
+in the current approved phase. Do not stop for user testing between batches.
+After all phase batches are implemented, explain the completed batches, provide
+one combined phase test handoff, and stop for the user's test result.
 
 ## Ponytail Full Mode
 
@@ -97,17 +99,17 @@ Codex may directly edit only the files required by the current approved batch.
   clearly.
 - Use `apply_patch` for source and documentation edits.
 
-## Batch Testing Handoff
+## Phase Testing Handoff
 
 The user runs Gradle builds and tests. Do not run them unless the user
 explicitly asks Codex to do so.
 
-After completing a batch:
+After completing all implementation batches in a phase:
 
-1. List every changed or created file.
+1. List every changed or created file, grouped by batch.
 2. Explain what changed and why it belongs there.
 3. Explain the relevant data or UI flow in beginner-friendly language.
-4. Give the exact test commands needed for that batch.
+4. Give the exact test commands needed for the phase.
 5. Give any required emulator, phone, or ESP8266 manual checks.
 6. State the expected result and what error output the user should send back.
 7. Stop and wait for the user's result.
@@ -132,13 +134,14 @@ Do not require connected-device tests when a local unit test is sufficient.
 
 Follow this sequence:
 
-1. Complete one batch.
-2. Give the user test commands and manual checks.
+1. Complete every implementation batch in the phase.
+2. Give the user one combined phase test handoff.
 3. Wait for the user to test.
-4. Fix the same batch if the test fails.
+4. Fix the affected batch if the test fails, then repeat the relevant phase
+   checks.
 5. After the user confirms success, check only the tracker tasks fully
-   completed by that batch.
-6. Propose the next batch and wait before starting it.
+   completed by the phase.
+6. Give the end-of-phase commit and push commands.
 
 Do not check an item merely because code was written. The `Commit and push`
 item remains unchecked until the user confirms that the end-of-phase commit
@@ -150,8 +153,13 @@ The user owns branches, commits, pushes, merges, pull requests, and tags.
 Codex must not execute those actions unless the user explicitly changes this
 rule.
 
-Do not commit or push after an individual batch. Commit and push only once,
-after every implementation and test batch in the current phase has passed.
+Use one branch for the entire version update. Do not create or switch branches
+at phase boundaries. Continue using the current version branch until the
+version update is complete.
+
+Do not commit or push after an individual batch. Commit and push only once
+after every implementation batch in the current phase has passed the combined
+phase tests.
 
 At the end of the phase, give the user explicit commands such as:
 
@@ -161,7 +169,7 @@ git diff --check
 git add <explicit-phase-files>
 git diff --cached --stat
 git commit -m "<phase commit message>"
-git push origin <phase branch>
+git push origin <version branch>
 ```
 
 Avoid `git add -A` when unrelated changes exist. After the user confirms the
@@ -180,4 +188,5 @@ current batch and include:
 - how to test it; and
 - what should happen when it works.
 
-Do not dump instructions for every remaining batch at once.
+Keep progress explanations organized by batch, but give only one combined test
+handoff after all batches in the phase are implemented.

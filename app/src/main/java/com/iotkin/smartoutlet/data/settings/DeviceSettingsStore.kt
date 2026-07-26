@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.iotkin.smartoutlet.data.model.DeviceAddress
+import com.iotkin.smartoutlet.data.model.RelayNumber
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -24,12 +25,11 @@ val Context.deviceSettingsDataStore:
 )
 
 class DeviceSettingsStore(
-    context: Context
-) {
-    private val dataStore =
+    context: Context,
+    private val dataStore: DataStore<Preferences> =
         context.applicationContext
             .deviceSettingsDataStore
-
+) {
     private val safePreferences =
         dataStore.data.catch { exception ->
             if (exception is IOException) {
@@ -71,19 +71,15 @@ class DeviceSettingsStore(
             Flow<AppSettings> =
         safePreferences.map { preferences ->
             val friendlyName =
-                preferences[
-                    Keys.FRIENDLY_DEVICE_NAME
-                ]
-                    ?.trim()
-                    ?.take(
+                sanitizeFriendlyName(
+                    value =
+                        preferences[
+                            Keys.FRIENDLY_DEVICE_NAME
+                        ],
+                    defaultValue =
                         AppSettings
-                            .MAX_FRIENDLY_DEVICE_NAME_LENGTH
-                    )
-                    ?.takeIf {
-                        it.isNotBlank()
-                    }
-                    ?: AppSettings
-                        .DEFAULT_FRIENDLY_DEVICE_NAME
+                            .DEFAULT_FRIENDLY_DEVICE_NAME
+                )
 
             val pollingInterval =
                 preferences[
@@ -101,6 +97,28 @@ class DeviceSettingsStore(
             AppSettings(
                 friendlyDeviceName =
                     friendlyName,
+                outlet1FriendlyName =
+                    sanitizeFriendlyName(
+                        value =
+                            preferences[
+                                Keys
+                                    .OUTLET_1_FRIENDLY_NAME
+                            ],
+                        defaultValue =
+                            AppSettings
+                                .DEFAULT_OUTLET_1_FRIENDLY_NAME
+                    ),
+                outlet2FriendlyName =
+                    sanitizeFriendlyName(
+                        value =
+                            preferences[
+                                Keys
+                                    .OUTLET_2_FRIENDLY_NAME
+                            ],
+                        defaultValue =
+                            AppSettings
+                                .DEFAULT_OUTLET_2_FRIENDLY_NAME
+                    ),
                 automaticDiscoveryEnabled =
                     preferences[
                         Keys
@@ -148,21 +166,50 @@ class DeviceSettingsStore(
         value: String
     ) {
         val sanitized =
-            value
-                .trim()
-                .take(
-                    AppSettings
-                        .MAX_FRIENDLY_DEVICE_NAME_LENGTH
-                )
-                .ifBlank {
+            sanitizeFriendlyName(
+                value = value,
+                defaultValue =
                     AppSettings
                         .DEFAULT_FRIENDLY_DEVICE_NAME
-                }
+            )
 
         dataStore.edit { preferences ->
             preferences[
                 Keys.FRIENDLY_DEVICE_NAME
             ] = sanitized
+        }
+    }
+
+    suspend fun setOutletFriendlyName(
+        relay: RelayNumber,
+        value: String
+    ) {
+        val key =
+            when (relay) {
+                RelayNumber.RELAY_1 ->
+                    Keys.OUTLET_1_FRIENDLY_NAME
+
+                RelayNumber.RELAY_2 ->
+                    Keys.OUTLET_2_FRIENDLY_NAME
+            }
+
+        val defaultValue =
+            when (relay) {
+                RelayNumber.RELAY_1 ->
+                    AppSettings
+                        .DEFAULT_OUTLET_1_FRIENDLY_NAME
+
+                RelayNumber.RELAY_2 ->
+                    AppSettings
+                        .DEFAULT_OUTLET_2_FRIENDLY_NAME
+            }
+
+        dataStore.edit { preferences ->
+            preferences[key] =
+                sanitizeFriendlyName(
+                    value = value,
+                    defaultValue = defaultValue
+                )
         }
     }
 
@@ -221,6 +268,14 @@ class DeviceSettingsStore(
             )
 
             preferences.remove(
+                Keys.OUTLET_1_FRIENDLY_NAME
+            )
+
+            preferences.remove(
+                Keys.OUTLET_2_FRIENDLY_NAME
+            )
+
+            preferences.remove(
                 Keys.AUTOMATIC_DISCOVERY_ENABLED
             )
 
@@ -264,6 +319,22 @@ class DeviceSettingsStore(
         )
     }
 
+    private fun sanitizeFriendlyName(
+        value: String?,
+        defaultValue: String
+    ): String {
+        return value
+            ?.trim()
+            ?.take(
+                AppSettings
+                    .MAX_FRIENDLY_DEVICE_NAME_LENGTH
+            )
+            ?.takeIf {
+                it.isNotBlank()
+            }
+            ?: defaultValue
+    }
+
     private object Keys {
         val DEVICE_HOST =
             stringPreferencesKey(
@@ -279,6 +350,18 @@ class DeviceSettingsStore(
             stringPreferencesKey(
                 name =
                     "friendly_device_name"
+            )
+
+        val OUTLET_1_FRIENDLY_NAME =
+            stringPreferencesKey(
+                name =
+                    "outlet_1_friendly_name"
+            )
+
+        val OUTLET_2_FRIENDLY_NAME =
+            stringPreferencesKey(
+                name =
+                    "outlet_2_friendly_name"
             )
 
         val AUTOMATIC_DISCOVERY_ENABLED =

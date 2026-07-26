@@ -9,16 +9,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -27,9 +30,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iotkin.smartoutlet.data.model.RelayNumber
 import com.iotkin.smartoutlet.data.model.RelayScheduleResponse
-import com.iotkin.smartoutlet.data.model.RelayStatusResponse
 import com.iotkin.smartoutlet.data.repository.DeviceConnectionState
 import com.iotkin.smartoutlet.data.repository.DeviceStatusRepositoryState
+import com.iotkin.smartoutlet.data.settings.AppSettings
+import com.iotkin.smartoutlet.data.settings.TimeFormatPreference
+import com.iotkin.smartoutlet.ui.components.RelayCard
+import com.iotkin.smartoutlet.ui.components.connectionDescription
+import com.iotkin.smartoutlet.ui.components.connectionLabel
+import com.iotkin.smartoutlet.ui.components.writeUnavailableMessage
 import com.iotkin.smartoutlet.ui.screens.diagnostics.DiagnosticsViewModel
 import com.iotkin.smartoutlet.ui.theme.OreoShapeTokens
 import com.iotkin.smartoutlet.ui.theme.OreoSpacing
@@ -39,9 +47,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.delay
-import com.iotkin.smartoutlet.ui.components.connectionDescription
-import com.iotkin.smartoutlet.ui.components.connectionLabel
-import com.iotkin.smartoutlet.ui.components.writeUnavailableMessage
 
 @Composable
 fun HomeRoute(
@@ -53,6 +58,9 @@ fun HomeRoute(
         .collectAsStateWithLifecycle()
 
     val relayControlState by viewModel.relayControlState
+        .collectAsStateWithLifecycle()
+
+    val appSettings by viewModel.appSettings
         .collectAsStateWithLifecycle()
 
     LaunchedEffect(
@@ -71,7 +79,10 @@ fun HomeRoute(
     HomeScreen(
         statusState = statusState,
         relayControlState = relayControlState,
+        appSettings = appSettings,
         onOutletStateChange = viewModel::setRelayState,
+        onOutletNameSave =
+            viewModel::setOutletFriendlyName,
         onOutletSelected = onOutletSelected,
         modifier = modifier
     )
@@ -81,13 +92,23 @@ fun HomeRoute(
 fun HomeScreen(
     statusState: DeviceStatusRepositoryState,
     relayControlState: RelayControlUiState,
+    appSettings: AppSettings,
     onOutletStateChange: (
         RelayNumber,
         Boolean
     ) -> Unit,
+    onOutletNameSave: (
+        RelayNumber,
+        String
+    ) -> Unit,
     onOutletSelected: (RelayNumber) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var relayBeingRenamed by
+    rememberSaveable {
+        mutableStateOf<RelayNumber?>(null)
+    }
+
     val status = statusState.status
 
     val deviceAvailable =
@@ -115,6 +136,9 @@ fun HomeScreen(
         item {
             HomeHeader(
                 statusState = statusState,
+                friendlyDeviceName =
+                    appSettings
+                        .friendlyDeviceName,
                 philippineTime =
                     status?.philippineTime
             )
@@ -149,64 +173,106 @@ fun HomeScreen(
                 }
 
                 item {
-                    OutletControlCard(
-                        relay = RelayNumber.RELAY_1,
-                        relayStatus = status.relay1,
-                        statusState = statusState,
-                        controlsEnabled =
-                            controlsEnabled,
-                        deviceAvailable =
-                            deviceAvailable,
-                        isUpdating =
-                            relayControlState.isUpdating(
-                                RelayNumber.RELAY_1
+                    RelayCard(
+                        outletLabel = "OUTLET 1",
+                        outletName =
+                            appSettings
+                                .outlet1FriendlyName,
+                        isOn = status.relay1.state,
+                        scheduleSummary =
+                            scheduleSummary(
+                                status.relay1
+                                    .schedule
                             ),
-                        lastRefreshEpochMillis =
-                            statusState
-                                .lastSuccessfulRefreshEpochMillis,
-                        onStateChange = {
+                        lastUpdated =
+                            formatLastAppRefresh(
+                                statusState
+                                    .lastSuccessfulRefreshEpochMillis
+                            ),
+                        onToggle = {
                                 desiredState ->
                             onOutletStateChange(
                                 RelayNumber.RELAY_1,
                                 desiredState
                             )
                         },
+                        onEditName = {
+                            relayBeingRenamed =
+                                RelayNumber.RELAY_1
+                        },
                         onOpenDetails = {
                             onOutletSelected(
                                 RelayNumber.RELAY_1
                             )
-                        }
+                        },
+                        controlsEnabled =
+                            controlsEnabled,
+                        isUpdating =
+                            relayControlState.isUpdating(
+                                RelayNumber.RELAY_1
+                            ),
+                        unavailableMessage =
+                            if (deviceAvailable) {
+                                null
+                            } else {
+                                statusState
+                                    .writeUnavailableMessage(
+                                        featureName =
+                                            "Outlet controls"
+                                    )
+                            }
                     )
                 }
 
                 item {
-                    OutletControlCard(
-                        relay = RelayNumber.RELAY_2,
-                        relayStatus = status.relay2,
-                        statusState = statusState,
-                        controlsEnabled =
-                            controlsEnabled,
-                        deviceAvailable =
-                            deviceAvailable,
-                        isUpdating =
-                            relayControlState.isUpdating(
-                                RelayNumber.RELAY_2
+                    RelayCard(
+                        outletLabel = "OUTLET 2",
+                        outletName =
+                            appSettings
+                                .outlet2FriendlyName,
+                        isOn = status.relay2.state,
+                        scheduleSummary =
+                            scheduleSummary(
+                                status.relay2
+                                    .schedule
                             ),
-                        lastRefreshEpochMillis =
-                            statusState
-                                .lastSuccessfulRefreshEpochMillis,
-                        onStateChange = {
+                        lastUpdated =
+                            formatLastAppRefresh(
+                                statusState
+                                    .lastSuccessfulRefreshEpochMillis
+                            ),
+                        onToggle = {
                                 desiredState ->
                             onOutletStateChange(
                                 RelayNumber.RELAY_2,
                                 desiredState
                             )
                         },
+                        onEditName = {
+                            relayBeingRenamed =
+                                RelayNumber.RELAY_2
+                        },
                         onOpenDetails = {
                             onOutletSelected(
                                 RelayNumber.RELAY_2
                             )
-                        }
+                        },
+                        controlsEnabled =
+                            controlsEnabled,
+                        isUpdating =
+                            relayControlState.isUpdating(
+                                RelayNumber.RELAY_2
+                            ),
+                        unavailableMessage =
+                            if (deviceAvailable) {
+                                null
+                            } else {
+                                statusState
+                                    .writeUnavailableMessage(
+                                        featureName =
+                                            "Outlet controls"
+                                    )
+                            }
                     )
                 }
 
@@ -229,50 +295,40 @@ fun HomeScreen(
                         philippineTime =
                             status.philippineTime,
                         timeValid =
-                            status.timeValid
+                            status.timeValid,
+                        timeFormatPreference =
+                            appSettings
+                                .timeFormatPreference
                     )
-                }
-
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement =
-                            Arrangement.spacedBy(
-                                OreoSpacing.StackMedium
-                            )
-                    ) {
-                        DeviceMetricCard(
-                            title = "Wi-Fi signal",
-                            value = "${status.rssi} dBm",
-                            supportingText =
-                                status.ssid.ifBlank {
-                                    "Network not reported"
-                                },
-                            modifier =
-                                Modifier.weight(1f)
-                        )
-
-                        DeviceMetricCard(
-                            title = "Device uptime",
-                            value =
-                                formatOutletUptime(
-                                    status.uptimeSeconds
-                                ),
-                            supportingText =
-                                "Since last restart",
-                            modifier =
-                                Modifier.weight(1f)
-                        )
-                    }
                 }
             }
         }
+    }
+
+    relayBeingRenamed?.let { relay ->
+        RenameOutletDialog(
+            relay = relay,
+            currentName =
+                appSettings
+                    .outletFriendlyName(relay),
+            onDismiss = {
+                relayBeingRenamed = null
+            },
+            onSave = { newName ->
+                onOutletNameSave(
+                    relay,
+                    newName
+                )
+                relayBeingRenamed = null
+            }
+        )
     }
 }
 
 @Composable
 private fun HomeHeader(
     statusState: DeviceStatusRepositoryState,
+    friendlyDeviceName: String,
     philippineTime: String?
 ) {
     val greeting =
@@ -311,8 +367,7 @@ private fun HomeHeader(
                 )
 
                 Text(
-                    text =
-                        statusState.connectionDescription(),
+                    text = friendlyDeviceName,
                     style =
                         MaterialTheme.typography
                             .bodyLarge,
@@ -320,6 +375,25 @@ private fun HomeHeader(
                         MaterialTheme.colorScheme
                             .onSurfaceVariant
                 )
+
+                if (
+                    statusState.isStale ||
+                    statusState.connectionState !=
+                    DeviceConnectionState.ONLINE
+                ) {
+                    Text(
+                        text =
+                            statusState
+                                .connectionDescription(),
+                        style =
+                            MaterialTheme.typography
+                                .bodySmall,
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurfaceVariant
+                    )
+                }
             }
 
             ConnectionStatusPill(
@@ -380,234 +454,17 @@ private fun ConnectionStatusPill(
 }
 
 @Composable
-private fun OutletControlCard(
-    relay: RelayNumber,
-    relayStatus: RelayStatusResponse,
-    statusState:
-    DeviceStatusRepositoryState,
-    controlsEnabled: Boolean,
-    deviceAvailable: Boolean,
-    isUpdating: Boolean,
-    lastRefreshEpochMillis: Long?,
-    onStateChange: (Boolean) -> Unit,
-    onOpenDetails: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = OreoShapeTokens.ExtraLarge,
-        color =
-            MaterialTheme.colorScheme
-                .surfaceContainerLowest,
-        border = BorderStroke(
-            width = 1.dp,
-            color =
-                MaterialTheme.colorScheme
-                    .outlineVariant
-                    .copy(alpha = 0.35f)
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(
-                OreoSpacing.CardPadding
-            ),
-            verticalArrangement =
-                Arrangement.spacedBy(
-                    OreoSpacing.StackMedium
-                )
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.SpaceBetween,
-                verticalAlignment =
-                    Alignment.CenterVertically
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement =
-                        Arrangement.spacedBy(
-                            OreoSpacing.StackSmall
-                        )
-                ) {
-                    Text(
-                        text =
-                            "OUTLET ${relay.apiValue}",
-                        style =
-                            MaterialTheme.typography
-                                .labelLarge,
-                        color =
-                            MaterialTheme.colorScheme
-                                .primary
-                    )
-
-                    Text(
-                        text =
-                            "Outlet ${relay.apiValue}",
-                        style =
-                            MaterialTheme.typography
-                                .headlineMedium,
-                        color =
-                            MaterialTheme.colorScheme
-                                .onSurface
-                    )
-                }
-
-                if (isUpdating) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.padding(
-                            OreoSpacing.StackSmall
-                        ),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Switch(
-                        checked = relayStatus.state,
-                        onCheckedChange =
-                            onStateChange,
-                        enabled = controlsEnabled
-                    )
-                }
-            }
-
-            HorizontalDivider(
-                color =
-                    MaterialTheme.colorScheme
-                        .outlineVariant
-                        .copy(alpha = 0.30f)
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.SpaceBetween,
-                verticalAlignment =
-                    Alignment.CenterVertically
-            ) {
-                Column(
-                    verticalArrangement =
-                        Arrangement.spacedBy(
-                            OreoSpacing.StackSmall
-                        )
-                ) {
-                    Text(
-                        text =
-                            if (isUpdating) {
-                                "Updating..."
-                            } else if (
-                                relayStatus.state
-                            ) {
-                                "ON"
-                            } else {
-                                "OFF"
-                            },
-                        style =
-                            MaterialTheme.typography
-                                .titleMedium,
-                        fontWeight =
-                            FontWeight.SemiBold,
-                        color =
-                            if (
-                                relayStatus.state
-                            ) {
-                                MaterialTheme
-                                    .colorScheme
-                                    .primary
-                            } else {
-                                MaterialTheme
-                                    .colorScheme
-                                    .onSurfaceVariant
-                            }
-                    )
-
-                    Text(
-                        text = "Current state",
-                        style =
-                            MaterialTheme.typography
-                                .bodySmall,
-                        color =
-                            MaterialTheme.colorScheme
-                                .onSurfaceVariant
-                    )
-                }
-
-                Column(
-                    horizontalAlignment =
-                        Alignment.End,
-                    verticalArrangement =
-                        Arrangement.spacedBy(
-                            OreoSpacing.StackSmall
-                        )
-                ) {
-                    Text(
-                        text =
-                            scheduleSummary(
-                                relayStatus.schedule
-                            ),
-                        style =
-                            MaterialTheme.typography
-                                .bodyMedium,
-                        textAlign = TextAlign.End,
-                        color =
-                            MaterialTheme.colorScheme
-                                .onSurface
-                    )
-
-                    Text(
-                        text =
-                            formatLastAppRefresh(
-                                lastRefreshEpochMillis
-                            ),
-                        style =
-                            MaterialTheme.typography
-                                .bodySmall,
-                        textAlign = TextAlign.End,
-                        color =
-                            MaterialTheme.colorScheme
-                                .onSurfaceVariant
-                    )
-                }
-            }
-
-            if (!deviceAvailable) {
-                Text(
-                    text =
-                        statusState
-                            .writeUnavailableMessage(
-                                featureName =
-                                    "Outlet controls"
-                            )
-                            ?: "",
-                    style =
-                        MaterialTheme.typography
-                            .bodySmall,
-                    color =
-                        MaterialTheme.colorScheme
-                            .error
-                )
-            }
-
-            TextButton(
-                onClick = onOpenDetails,
-                modifier = Modifier.align(
-                    Alignment.End
-                )
-            ) {
-                Text(
-                    text = "View details"
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun PhilippineTimeCard(
     philippineTime: String,
-    timeValid: Boolean
+    timeValid: Boolean,
+    timeFormatPreference:
+    TimeFormatPreference
 ) {
     val formatted =
         formatPhilippineTime(
-            philippineTime
+            value = philippineTime,
+            timeFormatPreference =
+                timeFormatPreference
         )
 
     Surface(
@@ -647,7 +504,7 @@ private fun PhilippineTimeCard(
                 text = formatted.first,
                 style =
                     MaterialTheme.typography
-                        .displayMedium,
+                        .headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color =
                     MaterialTheme.colorScheme
@@ -658,7 +515,7 @@ private fun PhilippineTimeCard(
                 text = formatted.second,
                 style =
                     MaterialTheme.typography
-                        .bodyLarge,
+                        .bodySmall,
                 color =
                     MaterialTheme.colorScheme
                         .onSurfaceVariant
@@ -676,70 +533,6 @@ private fun PhilippineTimeCard(
                             .error
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun DeviceMetricCard(
-    title: String,
-    value: String,
-    supportingText: String,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        shape = OreoShapeTokens.ExtraLarge,
-        color =
-            MaterialTheme.colorScheme
-                .surfaceContainerLowest,
-        border = BorderStroke(
-            width = 1.dp,
-            color =
-                MaterialTheme.colorScheme
-                    .outlineVariant
-                    .copy(alpha = 0.35f)
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(
-                OreoSpacing.CardPadding
-            ),
-            verticalArrangement =
-                Arrangement.spacedBy(
-                    OreoSpacing.StackSmall
-                )
-        ) {
-            Text(
-                text = title,
-                style =
-                    MaterialTheme.typography
-                        .bodyMedium,
-                color =
-                    MaterialTheme.colorScheme
-                        .onSurfaceVariant
-            )
-
-            Text(
-                text = value,
-                style =
-                    MaterialTheme.typography
-                        .headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color =
-                    MaterialTheme.colorScheme
-                        .onSurface
-            )
-
-            Text(
-                text = supportingText,
-                style =
-                    MaterialTheme.typography
-                        .bodySmall,
-                color =
-                    MaterialTheme.colorScheme
-                        .onSurfaceVariant
-            )
         }
     }
 }
@@ -861,7 +654,7 @@ internal fun formatLastAppRefresh(
 
     val formatter =
         DateTimeFormatter.ofPattern(
-            "MMM d, h:mm:ss a",
+            "h:mm a",
             Locale.US
         )
 
@@ -915,30 +708,6 @@ internal fun formatScheduleClock(
     )
 }
 
-internal fun formatOutletUptime(
-    totalSeconds: Long
-): String {
-    val days =
-        totalSeconds / 86_400
-
-    val hours =
-        totalSeconds % 86_400 / 3_600
-
-    val minutes =
-        totalSeconds % 3_600 / 60
-
-    return when {
-        days > 0 ->
-            "${days}d ${hours}h"
-
-        hours > 0 ->
-            "${hours}h ${minutes}m"
-
-        else ->
-            "${minutes}m"
-    }
-}
-
 private fun greetingFromPhilippineTime(
     value: String?
 ): String {
@@ -961,8 +730,10 @@ private fun greetingFromPhilippineTime(
     }
 }
 
-private fun formatPhilippineTime(
-    value: String
+internal fun formatPhilippineTime(
+    value: String,
+    timeFormatPreference:
+    TimeFormatPreference
 ): Pair<String, String> {
     val parsed =
         runCatching {
@@ -978,9 +749,20 @@ private fun formatPhilippineTime(
         )
     }
 
+    val timePattern =
+        when (timeFormatPreference) {
+            TimeFormatPreference
+                .TWELVE_HOUR ->
+                "h:mm:ss a"
+
+            TimeFormatPreference
+                .TWENTY_FOUR_HOUR ->
+                "HH:mm:ss"
+        }
+
     val timeFormatter =
         DateTimeFormatter.ofPattern(
-            "h:mm:ss a",
+            timePattern,
             Locale.US
         )
 
@@ -993,6 +775,91 @@ private fun formatPhilippineTime(
     return Pair(
         parsed.format(timeFormatter),
         parsed.format(dateFormatter)
+    )
+}
+
+@Composable
+private fun RenameOutletDialog(
+    relay: RelayNumber,
+    currentName: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var name by
+    rememberSaveable(relay) {
+        mutableStateOf(currentName)
+    }
+
+    var errorMessage by
+    rememberSaveable(relay) {
+        mutableStateOf<String?>(null)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text =
+                    "Rename Outlet ${relay.apiValue}"
+            )
+        },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { newValue ->
+                    if (
+                        newValue.length <=
+                        AppSettings
+                            .MAX_FRIENDLY_DEVICE_NAME_LENGTH
+                    ) {
+                        name = newValue
+                        errorMessage = null
+                    }
+                },
+                label = {
+                    Text(
+                        text = "Outlet name"
+                    )
+                },
+                supportingText = {
+                    Text(
+                        text =
+                            errorMessage
+                                ?: "${name.length}/40"
+                    )
+                },
+                isError = errorMessage != null,
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val trimmedName =
+                        name.trim()
+
+                    if (trimmedName.isBlank()) {
+                        errorMessage =
+                            "Enter an outlet name."
+                    } else {
+                        onSave(trimmedName)
+                    }
+                }
+            ) {
+                Text(
+                    text = "Save"
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss
+            ) {
+                Text(
+                    text = "Cancel"
+                )
+            }
+        }
     )
 }
 

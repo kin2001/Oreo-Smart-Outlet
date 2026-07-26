@@ -102,28 +102,24 @@ private fun ComponentGalleryContent() {
                 outletLabel = "Outlet 1",
                 outletName = "Living Room",
                 isOn = true,
-                nextEvent = "Today, 6:00 PM",
+                scheduleSummary =
+                    "8:00 PM – 5:00 AM",
+                lastUpdated = "Updated 4:52 PM",
                 onToggle = {},
-                iconContent = {
-                    Text(
-                        text = "1",
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
+                onEditName = {},
+                onOpenDetails = {}
             )
 
             RelayCard(
                 outletLabel = "Outlet 2",
                 outletName = "Bedroom",
                 isOn = false,
-                nextEvent = "Today, 7:00 PM",
+                scheduleSummary =
+                    "1:42 PM – 1:43 PM",
+                lastUpdated = "Updated 4:52 PM",
                 onToggle = {},
-                iconContent = {
-                    Text(
-                        text = "2",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                onEditName = {},
+                onOpenDetails = {}
             )
 
             Text(

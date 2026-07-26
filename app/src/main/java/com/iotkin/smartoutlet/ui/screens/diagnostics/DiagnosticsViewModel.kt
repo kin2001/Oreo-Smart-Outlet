@@ -14,6 +14,7 @@ import com.iotkin.smartoutlet.data.repository.SmartOutletRepository
 import com.iotkin.smartoutlet.data.repository.StatusRefreshOutcome
 import com.iotkin.smartoutlet.data.repository.StatusRefreshReason
 import com.iotkin.smartoutlet.data.settings.DeviceSettingsStore
+import com.iotkin.smartoutlet.data.settings.AppSettings
 import com.iotkin.smartoutlet.ui.screens.home.RelayControlUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -49,6 +50,9 @@ class DiagnosticsViewModel(
     application: Application
 ) : AndroidViewModel(application) {
 
+    private val settingsStore =
+        DeviceSettingsStore(application)
+
     private val connectivityMonitor =
         NetworkConnectivityMonitor(
             context = application
@@ -56,7 +60,7 @@ class DiagnosticsViewModel(
     private val repository =
         SmartOutletRepository(
             settingsStore =
-                DeviceSettingsStore(application),
+                settingsStore,
             networkFactory =
                 SmartOutletNetworkFactory(),
             scope = viewModelScope
@@ -71,6 +75,18 @@ class DiagnosticsViewModel(
     val statusState:
             StateFlow<DeviceStatusRepositoryState> =
         repository.statusState
+
+    val appSettings:
+            StateFlow<AppSettings> =
+        settingsStore.appSettings
+            .stateIn(
+                scope = viewModelScope,
+                started =
+                    SharingStarted.WhileSubscribed(
+                        stopTimeoutMillis = 5_000
+                    ),
+                initialValue = AppSettings()
+            )
 
     private val actionState =
         MutableStateFlow(
@@ -448,6 +464,32 @@ class DiagnosticsViewModel(
         }
     }
 
+    fun setOutletFriendlyName(
+        relay: RelayNumber,
+        value: String
+    ) {
+        val trimmedValue = value.trim()
+
+        if (
+            trimmedValue.isBlank() ||
+            trimmedValue.length >
+            AppSettings
+                .MAX_FRIENDLY_DEVICE_NAME_LENGTH
+        ) {
+            return
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                settingsStore
+                    .setOutletFriendlyName(
+                        relay = relay,
+                        value = trimmedValue
+                    )
+            }
+        }
+    }
+
     private fun runStatusAction(
         reason: StatusRefreshReason,
         successMessage: String
@@ -526,7 +568,7 @@ class DiagnosticsViewModel(
                 "OFF"
             }
 
-        return "Outlet ${relay.apiValue} is now $stateText."
+        return "${appSettings.value.outletFriendlyName(relay)} is now $stateText."
     }
 
 }

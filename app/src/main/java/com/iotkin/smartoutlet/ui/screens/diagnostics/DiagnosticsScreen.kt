@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -28,14 +29,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iotkin.smartoutlet.data.model.DeviceStatusResponse
 import com.iotkin.smartoutlet.data.repository.DeviceConnectionState
 import com.iotkin.smartoutlet.data.repository.DeviceStatusRepositoryState
 import com.iotkin.smartoutlet.ui.theme.OreoShapeTokens
+import com.iotkin.smartoutlet.ui.theme.OreoSmartOutletTheme
 import com.iotkin.smartoutlet.ui.theme.OreoSpacing
 import java.time.Instant
 import java.time.ZoneId
@@ -427,70 +431,54 @@ private fun DiagnosticsActionsCard(
             )
         }
 
-        Row(
+        OutlinedButton(
+            onClick = onTestConnection,
+            enabled = !anyActionRunning,
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement =
-                Arrangement.spacedBy(
-                    OreoSpacing.StackSmall
-                )
         ) {
-            OutlinedButton(
-                onClick = onTestConnection,
-                enabled = !anyActionRunning,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = "Test Connection"
-                )
-            }
-
-            OutlinedButton(
-                onClick = onRequestTimeSync,
-                enabled =
-                    !anyActionRunning &&
-                            repositoryState.address != null,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text =
-                        if (
-                            state.isRequestingTimeSync
-                        ) {
-                            "Syncing..."
-                        } else {
-                            "Time Sync"
-                        }
-                )
-            }
+            Text(
+                text = "Test Connection"
+            )
         }
 
-        Row(
+        OutlinedButton(
+            onClick = onRequestTimeSync,
+            enabled =
+                !anyActionRunning &&
+                        repositoryState.address != null,
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement =
-                Arrangement.spacedBy(
-                    OreoSpacing.StackSmall
-                )
         ) {
-            OutlinedButton(
-                onClick = onCopyDeviceAddress,
-                enabled =
-                    repositoryState.address != null,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = "Copy Address"
-                )
-            }
+            Text(
+                text =
+                    if (
+                        state.isRequestingTimeSync
+                    ) {
+                        "Syncing..."
+                    } else {
+                        "Time Sync"
+                    }
+            )
+        }
 
-            OutlinedButton(
-                onClick = onRunDiscoveryAgain,
-                enabled = !anyActionRunning,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = "Find Device"
-                )
-            }
+        OutlinedButton(
+            onClick = onCopyDeviceAddress,
+            enabled =
+                repositoryState.address != null,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "Copy Address"
+            )
+        }
+
+        OutlinedButton(
+            onClick = onRunDiscoveryAgain,
+            enabled = !anyActionRunning,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "Find Device"
+            )
         }
 
         feedbackMessage?.let { message ->
@@ -1000,36 +988,77 @@ private fun DiagnosticValueRow(
     androidx.compose.ui.graphics.Color =
         MaterialTheme.colorScheme.onSurface
 ) {
-    Row(
+    BoxWithConstraints(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement =
-            Arrangement.spacedBy(
-                OreoSpacing.StackMedium
-            ),
-        verticalAlignment =
-            Alignment.Top
     ) {
-        Text(
-            text = label,
-            style =
-                MaterialTheme.typography
-                    .bodyMedium,
-            color =
-                MaterialTheme.colorScheme
-                    .onSurfaceVariant,
-            modifier = Modifier.weight(1f)
-        )
+        val useStackedLayout =
+            maxWidth /
+                    LocalDensity.current.fontScale <
+                    300.dp
 
-        Text(
-            text = value,
-            style =
-                MaterialTheme.typography
-                    .bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = valueColor,
-            textAlign = TextAlign.End,
-            modifier = Modifier.weight(1f)
-        )
+        if (useStackedLayout) {
+            Column(
+                verticalArrangement =
+                    Arrangement.spacedBy(
+                        OreoSpacing.Base
+                    )
+            ) {
+                Text(
+                    text = label,
+                    style =
+                        MaterialTheme.typography
+                            .bodyMedium,
+                    color =
+                        MaterialTheme.colorScheme
+                            .onSurfaceVariant
+                )
+
+                Text(
+                    text = value,
+                    style =
+                        MaterialTheme.typography
+                            .bodyMedium,
+                    fontWeight =
+                        FontWeight.SemiBold,
+                    color = valueColor
+                )
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                    Arrangement.spacedBy(
+                        OreoSpacing.StackMedium
+                    ),
+                verticalAlignment =
+                    Alignment.Top
+            ) {
+                Text(
+                    text = label,
+                    style =
+                        MaterialTheme.typography
+                            .bodyMedium,
+                    color =
+                        MaterialTheme.colorScheme
+                            .onSurfaceVariant,
+                    modifier =
+                        Modifier.weight(1f)
+                )
+
+                Text(
+                    text = value,
+                    style =
+                        MaterialTheme.typography
+                            .bodyMedium,
+                    fontWeight =
+                        FontWeight.SemiBold,
+                    color = valueColor,
+                    textAlign = TextAlign.End,
+                    modifier =
+                        Modifier.weight(1f)
+                )
+            }
+        }
     }
 }
 
@@ -1176,3 +1205,55 @@ private fun copyDeviceAddress(
 
 private const val FEEDBACK_DURATION_MILLISECONDS =
     3_500L
+
+@Preview(
+    name = "Diagnostics Large Font",
+    widthDp = 360,
+    fontScale = 2f,
+    showBackground = true,
+    backgroundColor = 0xFF0F172A
+)
+@Composable
+private fun DiagnosticsLargeFontPreview() {
+    OreoSmartOutletTheme(
+        darkTheme = true
+    ) {
+        Surface(
+            color =
+                MaterialTheme.colorScheme
+                    .background
+        ) {
+            Column(
+                modifier =
+                    Modifier.padding(
+                        OreoSpacing.ScreenMargin
+                    ),
+                verticalArrangement =
+                    Arrangement.spacedBy(
+                        OreoSpacing.StackMedium
+                    )
+            ) {
+                DiagnosticsCard(
+                    title = "Connection"
+                ) {
+                    DiagnosticValueRow(
+                        label = "Device address",
+                        value =
+                            "192.168.8.113:8080"
+                    )
+                }
+
+                DiagnosticsActionsCard(
+                    state = DiagnosticsUiState(),
+                    feedbackMessage = null,
+                    feedbackIsError = false,
+                    onRefreshDeviceStatus = {},
+                    onTestConnection = {},
+                    onRequestTimeSync = {},
+                    onRunDiscoveryAgain = {},
+                    onCopyDeviceAddress = {}
+                )
+            }
+        }
+    }
+}

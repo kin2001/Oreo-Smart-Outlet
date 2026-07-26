@@ -83,7 +83,8 @@ fun OreoBottomNavigation(
                     Icon(
                         imageVector = destination.icon,
                         contentDescription =
-                            destination.label,
+                            destination
+                                .iconContentDescription,
                         modifier = Modifier.size(
                             OreoSpacing.StandardIcon
                         )
@@ -151,6 +152,26 @@ private fun BottomNavigationDarkPreview() {
     ) {
         OreoBottomNavigation(
             currentRoute = AppDestination.DIAGNOSTICS.route,
+            onDestinationSelected = {}
+        )
+    }
+}
+
+@Preview(
+    name = "Bottom Navigation Large Font",
+    widthDp = 360,
+    fontScale = 2f,
+    showBackground = true,
+    backgroundColor = 0xFF0F172A
+)
+@Composable
+private fun BottomNavigationLargeFontPreview() {
+    OreoSmartOutletTheme(
+        darkTheme = true
+    ) {
+        OreoBottomNavigation(
+            currentRoute =
+                AppDestination.DIAGNOSTICS.route,
             onDestinationSelected = {}
         )
     }
