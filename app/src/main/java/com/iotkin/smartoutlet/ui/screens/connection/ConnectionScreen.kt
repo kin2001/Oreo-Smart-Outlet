@@ -37,6 +37,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 
 @Composable
 fun DeviceConnectionSetupScreen(
@@ -47,8 +52,13 @@ fun DeviceConnectionSetupScreen(
     onDiscoveredDeviceSelected: (DiscoveredSmartOutlet) -> Unit,
     onTestConnection: () -> Unit,
     onSaveDevice: () -> Unit,
+    onDisconnectDevice: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var showDisconnectConfirmation by
+    rememberSaveable {
+        mutableStateOf(false)
+    }
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -88,11 +98,30 @@ fun DeviceConnectionSetupScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            DeviceDiscoverySection(
-                discoveryState = state.discovery,
-                onRefresh = onRefreshDiscovery,
-                onDeviceSelected = onDiscoveredDeviceSelected
-            )
+            if (
+                state
+                    .automaticDiscoveryEnabled
+            ) {
+                DeviceDiscoverySection(
+                    discoveryState =
+                        state.discovery,
+                    onRefresh =
+                        onRefreshDiscovery,
+                    onDeviceSelected =
+                        onDiscoveredDeviceSelected
+                )
+            } else {
+                Text(
+                    text =
+                        "Automatic discovery is off. Enter the device address manually.",
+                    style =
+                        MaterialTheme.typography
+                            .bodyMedium,
+                    color =
+                        MaterialTheme.colorScheme
+                            .onSurfaceVariant
+                )
+            }
 
             Text(
                 text = "Or enter the address manually",
@@ -160,8 +189,85 @@ fun DeviceConnectionSetupScreen(
                             !state.isSavingDevice,
                     isLoading = state.isSavingDevice
                 )
+                if (state.savedAddress != null) {
+                    OreoSecondaryButton(
+                        text =
+                            if (
+                                state.isDisconnectingDevice
+                            ) {
+                                "Removing Device"
+                            } else {
+                                "Disconnect Device"
+                            },
+                        onClick = {
+                            showDisconnectConfirmation = true
+                        },
+                        modifier =
+                            Modifier.fillMaxWidth(),
+                        enabled =
+                            !state.isTestingConnection &&
+                                    !state.isSavingDevice &&
+                                    !state.isDisconnectingDevice,
+                        isLoading =
+                            state.isDisconnectingDevice
+                    )
+                }
             }
         }
+    }
+    if (showDisconnectConfirmation) {
+        AlertDialog(
+            onDismissRequest = {
+                if (
+                    !state.isDisconnectingDevice
+                ) {
+                    showDisconnectConfirmation =
+                        false
+                }
+            },
+            title = {
+                Text(
+                    text =
+                        "Disconnect saved device?"
+                )
+            },
+            text = {
+                Text(
+                    text =
+                        "The saved IP address and port will be removed."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDisconnectConfirmation =
+                            false
+
+                        onDisconnectDevice()
+                    },
+                    enabled =
+                        !state.isDisconnectingDevice
+                ) {
+                    Text(
+                        text = "Disconnect"
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDisconnectConfirmation =
+                            false
+                    },
+                    enabled =
+                        !state.isDisconnectingDevice
+                ) {
+                    Text(
+                        text = "Cancel"
+                    )
+                }
+            }
+        )
     }
 }
 
@@ -430,6 +536,7 @@ private fun SaveDeviceErrorCard(
 @Composable
 fun DeviceConnectionSetupRoute(
     onDeviceSaved: () -> Unit,
+    onDeviceDisconnected: () -> Unit = {},
     modifier: Modifier = Modifier,
     setupViewModel: DeviceConnectionSetupViewModel = viewModel()
 ) {
@@ -477,13 +584,15 @@ fun DeviceConnectionSetupRoute(
                 }
 
                 DeviceConnectionSetupEvent.DeviceDisconnected -> {
-                    Unit
+                    onDeviceDisconnected()
                 }
             }
         }
     }
 
     DeviceConnectionSetupScreen(
+        onDisconnectDevice =
+            setupViewModel::disconnectDevice,
         state = state,
         onIpAddressChange = setupViewModel::onIpAddressChange,
         onPortChange = setupViewModel::onPortChange,

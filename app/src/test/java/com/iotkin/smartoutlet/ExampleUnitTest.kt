@@ -1,17 +1,41 @@
 package com.iotkin.smartoutlet
 
+import com.iotkin.smartoutlet.data.settings.AppThemePreference
+import com.iotkin.smartoutlet.data.settings.isDarkTheme
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
-import org.junit.Assert.*
+class AppThemePreferenceTest {
 
-/**
- * Example local unit test, which will execute on the development machine (host).
- *
- * See [testing documentation](http://d.android.com/tools/testing).
- */
-class ExampleUnitTest {
     @Test
-    fun addition_isCorrect() {
-        assertEquals(4, 2 + 2)
+    fun themePreferenceResolvesSystemAndOverrides() {
+        assertTrue(
+            AppThemePreference.SYSTEM
+                .isDarkTheme(
+                    systemInDarkTheme = true
+                )
+        )
+
+        assertFalse(
+            AppThemePreference.SYSTEM
+                .isDarkTheme(
+                    systemInDarkTheme = false
+                )
+        )
+
+        assertFalse(
+            AppThemePreference.LIGHT
+                .isDarkTheme(
+                    systemInDarkTheme = true
+                )
+        )
+
+        assertTrue(
+            AppThemePreference.DARK
+                .isDarkTheme(
+                    systemInDarkTheme = false
+                )
+        )
     }
 }

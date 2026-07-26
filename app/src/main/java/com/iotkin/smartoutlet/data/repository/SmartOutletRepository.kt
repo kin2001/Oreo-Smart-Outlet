@@ -3,6 +3,7 @@ package com.iotkin.smartoutlet.data.repository
 import com.iotkin.smartoutlet.data.model.DeviceAddress
 import com.iotkin.smartoutlet.data.network.DeviceStatusResult
 import com.iotkin.smartoutlet.data.network.SmartOutletNetworkFactory
+import com.iotkin.smartoutlet.data.settings.AppSettings
 import com.iotkin.smartoutlet.data.settings.DeviceSettingsStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -49,9 +50,14 @@ class SmartOutletRepository(
     private var foregroundPollingRequested =
         false
 
+    private var normalPollingIntervalMilliseconds =
+        AppSettings
+            .DEFAULT_POLLING_INTERVAL_SECONDS *
+                1_000L
 
     init {
         observeSavedAddress()
+        observePollingInterval()
     }
 
     fun startForegroundPolling() {
@@ -606,6 +612,30 @@ class SmartOutletRepository(
         }
     }
 
+    private fun observePollingInterval() {
+        scope.launch {
+            settingsStore.appSettings
+                .collect { settings ->
+                    val newInterval =
+                        settings
+                            .pollingIntervalSeconds *
+                                1_000L
+
+                    if (
+                        normalPollingIntervalMilliseconds ==
+                        newInterval
+                    ) {
+                        return@collect
+                    }
+
+                    normalPollingIntervalMilliseconds =
+                        newInterval
+
+                    restartForegroundPollingImmediately()
+                }
+        }
+    }
+
     private suspend fun resolveSavedAddress():
             DeviceAddress? {
         val currentAddress =
@@ -690,7 +720,9 @@ class SmartOutletRepository(
         failureCount: Int
     ): Long {
         return when (failureCount) {
-            0 -> NORMAL_POLL_INTERVAL_MILLISECONDS
+            0 ->
+                normalPollingIntervalMilliseconds
+
             1 -> FIRST_RETRY_MILLISECONDS
             2 -> SECOND_RETRY_MILLISECONDS
             3 -> THIRD_RETRY_MILLISECONDS
@@ -699,9 +731,6 @@ class SmartOutletRepository(
     }
 
     companion object {
-        private const val NORMAL_POLL_INTERVAL_MILLISECONDS =
-            2_000L
-
         private const val FIRST_RETRY_MILLISECONDS =
             2_000L
 

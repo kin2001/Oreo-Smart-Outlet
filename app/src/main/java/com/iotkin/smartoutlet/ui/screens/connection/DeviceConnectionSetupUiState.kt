@@ -10,6 +10,8 @@ enum class ConnectionIssueType {
 }
 
 data class DeviceConnectionSetupUiState(
+    val savedAddress: DeviceAddress? = null,
+    val automaticDiscoveryEnabled: Boolean = true,
     val ipAddress: String = "",
     val port: String =
         DeviceAddress.DEFAULT_API_PORT.toString(),
@@ -18,6 +20,7 @@ data class DeviceConnectionSetupUiState(
     val isTestingConnection: Boolean = false,
     val isSavingDevice: Boolean = false,
     val isDeviceVerified: Boolean = false,
+    val isDisconnectingDevice: Boolean = false,
     val verifiedAddress: DeviceAddress? = null,
     val connectionIssue: ConnectionIssueType? = null,
     val connectionMessage: String? = null,

@@ -72,13 +72,75 @@ class DeviceConnectionSetupViewModel(
                 }
             }
         }
+
+        viewModelScope.launch {
+            settingsStore
+                .savedDeviceAddress
+                .collect { address ->
+                    if (address == null) {
+                        _uiState.update {
+                            it.copy(
+                                savedAddress = null
+                            )
+                        }
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                savedAddress = address,
+                                ipAddress =
+                                    address.host,
+                                port =
+                                    address.port
+                                        .toString(),
+                                ipError = null,
+                                portError = null,
+                                isDeviceVerified = true,
+                                verifiedAddress =
+                                    address,
+                                connectionIssue = null,
+                                connectionMessage =
+                                    "Saved device address loaded.",
+                                saveError = null
+                            )
+                        }
+                    }
+                }
+        }
+
+        viewModelScope.launch {
+            settingsStore
+                .appSettings
+                .collect { settings ->
+                    _uiState.update {
+                        it.copy(
+                            automaticDiscoveryEnabled =
+                                settings
+                                    .automaticDiscoveryEnabled
+                        )
+                    }
+                }
+        }
     }
 
     fun startDiscovery() {
+        if (
+            !_uiState.value
+                .automaticDiscoveryEnabled
+        ) {
+            return
+        }
+
         discoveryCoordinator.start()
     }
 
     fun refreshDiscovery() {
+        if (
+            !_uiState.value
+                .automaticDiscoveryEnabled
+        ) {
+            return
+        }
+
         discoveryCoordinator.refresh()
     }
 
@@ -297,17 +359,53 @@ class DeviceConnectionSetupViewModel(
         }
     }
     fun disconnectDevice() {
-        viewModelScope.launch {
-            settingsStore.clearDeviceAddress()
+        if (
+            _uiState.value
+                .isDisconnectingDevice
+        ) {
+            return
+        }
 
-            _uiState.value =
-                DeviceConnectionSetupUiState()
-
-            discoveryCoordinator.refresh()
-
-            _events.emit(
-                DeviceConnectionSetupEvent.DeviceDisconnected
+        _uiState.update {
+            it.copy(
+                isDisconnectingDevice = true,
+                saveError = null
             )
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                settingsStore
+                    .clearDeviceAddress()
+            }.onSuccess {
+                val currentState =
+                    _uiState.value
+
+                _uiState.value =
+                    DeviceConnectionSetupUiState(
+                        automaticDiscoveryEnabled =
+                            currentState
+                                .automaticDiscoveryEnabled,
+                        discovery =
+                            currentState.discovery
+                    )
+
+                discoveryCoordinator.refresh()
+
+                _events.emit(
+                    DeviceConnectionSetupEvent
+                        .DeviceDisconnected
+                )
+            }.onFailure {
+                _uiState.update {
+                    it.copy(
+                        isDisconnectingDevice =
+                            false,
+                        saveError =
+                            "The saved device could not be removed."
+                    )
+                }
+            }
         }
     }
 
