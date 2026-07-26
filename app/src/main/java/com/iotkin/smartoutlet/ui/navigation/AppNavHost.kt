@@ -325,7 +325,7 @@ private fun MainAppNavHost(
                 DiagnosticsRoute(
                     viewModel =
                         diagnosticsViewModel,
-                    onRunDiscoveryAgain =
+                    onManageDevice =
                         onManageDevice
                 )
             }

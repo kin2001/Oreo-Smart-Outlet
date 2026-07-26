@@ -174,15 +174,6 @@ class DiagnosticsViewModel(
         )
     }
 
-    fun testConnection() {
-        runStatusAction(
-            reason =
-                StatusRefreshReason.TEST_CONNECTION,
-            successMessage =
-                "Connection test passed."
-        )
-    }
-
     fun requestTimeSync() {
         if (
             actionState.value
@@ -213,7 +204,7 @@ class DiagnosticsViewModel(
                         currentState.copy(
                             isRequestingTimeSync = false,
                             message =
-                                "Philippine time synchronization requested.",
+                                "Device clock synchronization requested.",
                             error = null
                         )
                     }

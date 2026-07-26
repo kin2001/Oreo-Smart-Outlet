@@ -3,6 +3,11 @@ package com.iotkin.smartoutlet.ui.screens.diagnostics
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -12,22 +17,37 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -50,24 +70,28 @@ import kotlinx.coroutines.delay
 @Composable
 fun DiagnosticsRoute(
     viewModel: DiagnosticsViewModel,
-    onRunDiscoveryAgain: () -> Unit,
+    onManageDevice: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState
+        .collectAsStateWithLifecycle()
+
+    val appSettings by viewModel.appSettings
         .collectAsStateWithLifecycle()
 
     val context = LocalContext.current
 
     DiagnosticsScreen(
         state = state,
+        outlet1Name =
+            appSettings.outlet1FriendlyName,
+        outlet2Name =
+            appSettings.outlet2FriendlyName,
         onRefreshDeviceStatus =
             viewModel::refreshDeviceStatus,
-        onTestConnection =
-            viewModel::testConnection,
         onRequestTimeSync =
             viewModel::requestTimeSync,
-        onRunDiscoveryAgain =
-            onRunDiscoveryAgain,
+        onManageDevice = onManageDevice,
         onCopyDeviceAddress = {
             val address =
                 state.repositoryState
@@ -90,10 +114,11 @@ fun DiagnosticsRoute(
 @Composable
 fun DiagnosticsScreen(
     state: DiagnosticsUiState,
+    outlet1Name: String,
+    outlet2Name: String,
     onRefreshDeviceStatus: () -> Unit,
-    onTestConnection: () -> Unit,
     onRequestTimeSync: () -> Unit,
-    onRunDiscoveryAgain: () -> Unit,
+    onManageDevice: () -> Unit,
     onCopyDeviceAddress: () -> Unit,
     onDismissFeedback: () -> Unit,
     modifier: Modifier = Modifier
@@ -162,24 +187,8 @@ fun DiagnosticsScreen(
         }
 
         item {
-            ConnectionSummaryCard(
-                state = repositoryState
-            )
-        }
-
-        item {
-            DiagnosticsActionsCard(
-                state = state,
-                feedbackMessage = feedbackMessage,
-                feedbackIsError = feedbackIsError,
-                onRefreshDeviceStatus =
-                    onRefreshDeviceStatus,
-                onTestConnection =
-                    onTestConnection,
-                onRequestTimeSync =
-                    onRequestTimeSync,
-                onRunDiscoveryAgain =
-                    onRunDiscoveryAgain,
+            DeviceHealthSummaryCard(
+                state = repositoryState,
                 onCopyDeviceAddress = {
                     onCopyDeviceAddress()
 
@@ -190,60 +199,33 @@ fun DiagnosticsScreen(
             )
         }
 
-        when {
-            repositoryState.isInitialLoading -> {
-                item {
-                    DiagnosticsLoadingCard()
-                }
+        item {
+            DiagnosticsActionsCard(
+                state = state,
+                feedbackMessage = feedbackMessage,
+                feedbackIsError = feedbackIsError,
+                onRefreshDeviceStatus =
+                    onRefreshDeviceStatus,
+                onRequestTimeSync =
+                    onRequestTimeSync,
+                onManageDevice = onManageDevice
+            )
+        }
+
+        if (repositoryState.isInitialLoading) {
+            item {
+                DiagnosticsLoadingCard()
             }
+        }
 
-            repositoryState.status == null -> {
-                item {
-                    DiagnosticsUnavailableCard(
-                        state = repositoryState
-                    )
-                }
-            }
-
-            else -> {
-                val status =
-                    repositoryState.status
-
-                item {
-                    NetworkInformationCard(
-                        status = status
-                    )
-                }
-
-                item {
-                    TimeInformationCard(
-                        status = status
-                    )
-                }
-
-                item {
-                    RelayInformationCard(
-                        status = status
-                    )
-                }
-
-                item {
-                    DeviceInformationCard(
-                        status = status
-                    )
-                }
-
-                item {
-                    SystemInformationCard(
-                        status = status
-                    )
-                }
-
-                item {
-                    ReadinessInformationCard(
-                        status = status
-                    )
-                }
+        repositoryState.status?.let { status ->
+            item {
+                TechnicalDetailsSection(
+                    state = repositoryState,
+                    status = status,
+                    outlet1Name = outlet1Name,
+                    outlet2Name = outlet2Name
+                )
             }
         }
 
@@ -288,7 +270,7 @@ private fun DiagnosticsHeader(
 
         Text(
             text =
-                "Live device, network, firmware, and system information.",
+                "See your outlet's health, connection, and device information.",
             style =
                 MaterialTheme.typography
                     .bodyLarge,
@@ -296,6 +278,430 @@ private fun DiagnosticsHeader(
                 MaterialTheme.colorScheme
                     .onSurfaceVariant
         )
+    }
+}
+
+private data class HealthPresentation(
+    val title: String,
+    val description: String,
+    val connectionText: String,
+    val icon: ImageVector,
+    val color: Color
+)
+
+@Composable
+private fun DeviceHealthSummaryCard(
+    state: DeviceStatusRepositoryState,
+    onCopyDeviceAddress: () -> Unit
+) {
+    val status = state.status
+
+    val wifiQuality =
+        status?.let { currentStatus ->
+            wifiQualityLabel(currentStatus.rssi)
+        }
+
+    val presentation =
+        when (state.connectionState) {
+            DeviceConnectionState.NO_SAVED_DEVICE ->
+                HealthPresentation(
+                    title = "No device is connected",
+                    description =
+                        "Add or select your smart outlet to see its status.",
+                    connectionText =
+                        "No saved device",
+                    icon = Icons.Filled.Info,
+                    color =
+                        MaterialTheme.colorScheme
+                            .error
+                )
+
+            DeviceConnectionState.CONNECTING ->
+                HealthPresentation(
+                    title = "Connecting to your outlet",
+                    description =
+                        "Keep your phone on the same Wi-Fi network while the app connects.",
+                    connectionText = "Connecting",
+                    icon = Icons.Filled.Refresh,
+                    color =
+                        MaterialTheme.colorScheme
+                            .tertiary
+                )
+
+            DeviceConnectionState.RECONNECTING ->
+                HealthPresentation(
+                    title = "Checking your connection",
+                    description =
+                        if (state.isStale) {
+                            "A status refresh was delayed. Last confirmed data remains visible while the app tries again."
+                        } else {
+                            "Keep your phone and outlet on the same Wi-Fi network."
+                        },
+                    connectionText = "Reconnecting",
+                    icon = Icons.Filled.Refresh,
+                    color =
+                        MaterialTheme.colorScheme
+                            .primary
+                )
+
+            DeviceConnectionState.OFFLINE ->
+                HealthPresentation(
+                    title = "Your outlet is offline",
+                    description =
+                        "Check that the outlet has power and that your phone uses the same Wi-Fi network. Then refresh the status.",
+                    connectionText = "Offline",
+                    icon = Icons.Filled.Warning,
+                    color =
+                        MaterialTheme.colorScheme
+                            .error
+                )
+
+            DeviceConnectionState.ONLINE ->
+                when {
+                    status == null ->
+                        HealthPresentation(
+                            title =
+                                "Connected, checking status",
+                            description =
+                                "The app is waiting for the latest device information.",
+                            connectionText = "Connected",
+                            icon =
+                                Icons.Filled.CheckCircle,
+                            color =
+                                MaterialTheme
+                                    .colorScheme
+                                    .primary
+                        )
+
+                    !status.timeValid ->
+                        HealthPresentation(
+                            title =
+                                "Device clock needs attention",
+                            description =
+                                "Your outlet is connected. Sync its clock so schedules use the correct time.",
+                            connectionText = "Connected",
+                            icon = Icons.Filled.Warning,
+                            color =
+                                MaterialTheme
+                                    .colorScheme
+                                    .tertiary
+                        )
+
+                    wifiQuality == "Fair" ||
+                            wifiQuality == "Weak" ->
+                        HealthPresentation(
+                            title =
+                                "Wi-Fi signal could be better",
+                            description =
+                                if (wifiQuality == "Weak") {
+                                    "Your outlet is connected, but its Wi-Fi signal is weak. Moving it or the router closer may improve reliability."
+                                } else {
+                                    "Your outlet is connected with a fair Wi-Fi signal. Moving it or the router closer may improve reliability."
+                                },
+                            connectionText = "Connected",
+                            icon = Icons.Filled.Warning,
+                            color =
+                                MaterialTheme
+                                    .colorScheme
+                                    .tertiary
+                        )
+
+                    else ->
+                        HealthPresentation(
+                            title =
+                                "Everything looks good",
+                            description =
+                                "Your outlet is connected, its Wi-Fi signal is ${wifiQuality?.lowercase() ?: "available"}, and its clock is ready.",
+                            connectionText = "Connected",
+                            icon =
+                                Icons.Filled.CheckCircle,
+                            color =
+                                MaterialTheme
+                                    .colorScheme
+                                    .primary
+                        )
+                }
+        }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = OreoShapeTokens.ExtraLarge,
+        color =
+            presentation.color.copy(
+                alpha = 0.08f
+            ),
+        border = BorderStroke(
+            width = 1.dp,
+            color =
+                presentation.color.copy(
+                    alpha = 0.30f
+                )
+        )
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    OreoSpacing.CardPadding
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    OreoSpacing.StackMedium
+                )
+        ) {
+            Row(
+                horizontalArrangement =
+                    Arrangement.spacedBy(
+                        OreoSpacing.StackMedium
+                    ),
+                verticalAlignment =
+                    Alignment.Top
+            ) {
+                Icon(
+                    imageVector =
+                        presentation.icon,
+                    contentDescription = null,
+                    tint = presentation.color,
+                    modifier =
+                        Modifier.size(
+                            OreoSpacing.StandardIcon
+                        )
+                )
+
+                Column(
+                    verticalArrangement =
+                        Arrangement.spacedBy(
+                            OreoSpacing.StackSmall
+                        )
+                ) {
+                    Text(
+                        text = presentation.title,
+                        style =
+                            MaterialTheme.typography
+                                .headlineMedium,
+                        color =
+                            MaterialTheme.colorScheme
+                                .onSurface
+                    )
+
+                    Text(
+                        text =
+                            presentation.description,
+                        style =
+                            MaterialTheme.typography
+                                .bodyMedium,
+                        color =
+                            MaterialTheme.colorScheme
+                                .onSurfaceVariant
+                    )
+                }
+            }
+
+            HealthStatusRow(
+                icon = presentation.icon,
+                text =
+                    "Connection: ${presentation.connectionText}",
+                color = presentation.color
+            )
+
+            if (state.isStale) {
+                HealthStatusRow(
+                    icon = Icons.Filled.Warning,
+                    text =
+                        "Status: Showing last confirmed data",
+                    color = presentation.color
+                )
+            }
+
+            status?.let { currentStatus ->
+                val signalQuality =
+                    wifiQualityLabel(
+                        currentStatus.rssi
+                    )
+
+                val signalNeedsAttention =
+                    signalQuality == "Fair" ||
+                            signalQuality == "Weak"
+
+                HealthStatusRow(
+                    icon =
+                        if (signalNeedsAttention) {
+                            Icons.Filled.Warning
+                        } else {
+                            Icons.Filled.CheckCircle
+                        },
+                    text =
+                        "Wi-Fi signal: $signalQuality",
+                    color =
+                        if (signalNeedsAttention) {
+                            MaterialTheme.colorScheme
+                                .tertiary
+                        } else {
+                            MaterialTheme.colorScheme
+                                .primary
+                        }
+                )
+
+                HealthStatusRow(
+                    icon =
+                        if (currentStatus.timeValid) {
+                            Icons.Filled.CheckCircle
+                        } else {
+                            Icons.Filled.Warning
+                        },
+                    text =
+                        if (currentStatus.timeValid) {
+                            "Device clock: Ready"
+                        } else {
+                            "Device clock: Needs synchronization"
+                        },
+                    color =
+                        if (currentStatus.timeValid) {
+                            MaterialTheme.colorScheme
+                                .primary
+                        } else {
+                            MaterialTheme.colorScheme
+                                .tertiary
+                        }
+                )
+            }
+
+            state.address?.let { address ->
+                HorizontalDivider(
+                    color =
+                        MaterialTheme.colorScheme
+                            .outlineVariant
+                            .copy(alpha = 0.35f)
+                )
+
+                DeviceAddressRow(
+                    address = address.displayAddress,
+                    onCopy = onCopyDeviceAddress
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HealthStatusRow(
+    icon: ImageVector,
+    text: String,
+    color: Color
+) {
+    Row(
+        horizontalArrangement =
+            Arrangement.spacedBy(
+                OreoSpacing.StackSmall
+            ),
+        verticalAlignment =
+            Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = color,
+            modifier =
+                Modifier.size(
+                    OreoSpacing.StandardIcon
+                )
+        )
+
+        Text(
+            text = text,
+            style =
+                MaterialTheme.typography
+                    .bodyMedium,
+            color =
+                MaterialTheme.colorScheme
+                    .onSurface
+        )
+    }
+}
+
+@Composable
+private fun DeviceAddressRow(
+    address: String,
+    onCopy: () -> Unit
+) {
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        val useStackedLayout =
+            maxWidth /
+                    LocalDensity.current.fontScale <
+                    300.dp
+
+        if (useStackedLayout) {
+            Column {
+                Text(
+                    text = "Device address",
+                    style =
+                        MaterialTheme.typography
+                            .bodySmall,
+                    color =
+                        MaterialTheme.colorScheme
+                            .onSurfaceVariant
+                )
+
+                Text(
+                    text = address,
+                    style =
+                        MaterialTheme.typography
+                            .bodyMedium,
+                    fontWeight =
+                        FontWeight.SemiBold
+                )
+
+                TextButton(
+                    onClick = onCopy,
+                    modifier =
+                        Modifier.align(
+                            Alignment.End
+                        )
+                ) {
+                    Text("Copy")
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                    Arrangement.spacedBy(
+                        OreoSpacing.StackSmall
+                    ),
+                verticalAlignment =
+                    Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "Device address",
+                        style =
+                            MaterialTheme.typography
+                                .bodySmall,
+                        color =
+                            MaterialTheme.colorScheme
+                                .onSurfaceVariant
+                    )
+
+                    Text(
+                        text = address,
+                        style =
+                            MaterialTheme.typography
+                                .bodyMedium,
+                        fontWeight =
+                            FontWeight.SemiBold
+                    )
+                }
+
+                TextButton(
+                    onClick = onCopy
+                ) {
+                    Text("Copy")
+                }
+            }
+        }
     }
 }
 
@@ -388,10 +794,8 @@ private fun DiagnosticsActionsCard(
     feedbackMessage: String?,
     feedbackIsError: Boolean,
     onRefreshDeviceStatus: () -> Unit,
-    onTestConnection: () -> Unit,
     onRequestTimeSync: () -> Unit,
-    onRunDiscoveryAgain: () -> Unit,
-    onCopyDeviceAddress: () -> Unit
+    onManageDevice: () -> Unit
 ) {
     val repositoryState =
         state.repositoryState
@@ -404,7 +808,7 @@ private fun DiagnosticsActionsCard(
                 state.isRequestingTimeSync
 
     DiagnosticsCard(
-        title = "Quick actions"
+        title = "Actions"
     ) {
         Text(
             text =
@@ -421,65 +825,65 @@ private fun DiagnosticsActionsCard(
             enabled = !anyActionRunning,
             modifier = Modifier.fillMaxWidth()
         ) {
+            Icon(
+                imageVector = Icons.Filled.Refresh,
+                contentDescription = null
+            )
+
             Text(
                 text =
                     if (statusActionRunning) {
                         "Refreshing Status..."
                     } else {
                         "Refresh Status"
-                    }
+                    },
+                modifier =
+                    Modifier.padding(
+                        start =
+                            OreoSpacing.StackSmall
+                    )
             )
         }
 
-        OutlinedButton(
-            onClick = onTestConnection,
-            enabled = !anyActionRunning,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                text = "Test Connection"
-            )
-        }
+        HorizontalDivider(
+            color =
+                MaterialTheme.colorScheme
+                    .outlineVariant
+                    .copy(alpha = 0.35f)
+        )
 
-        OutlinedButton(
+        DiagnosticsActionRow(
+            label =
+                if (
+                    state.isRequestingTimeSync
+                ) {
+                    "Syncing..."
+                } else {
+                    "Sync Device Clock"
+                },
+            icon = Icons.Filled.Refresh,
             onClick = onRequestTimeSync,
             enabled =
                 !anyActionRunning &&
-                        repositoryState.address != null,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                text =
-                    if (
-                        state.isRequestingTimeSync
-                    ) {
-                        "Syncing..."
-                    } else {
-                        "Time Sync"
-                    }
-            )
-        }
+                        repositoryState.address != null
+        )
 
-        OutlinedButton(
-            onClick = onCopyDeviceAddress,
-            enabled =
-                repositoryState.address != null,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = "Copy Address"
-            )
-        }
+        HorizontalDivider(
+            color =
+                MaterialTheme.colorScheme
+                    .outlineVariant
+                    .copy(alpha = 0.35f)
+        )
 
-        OutlinedButton(
-            onClick = onRunDiscoveryAgain,
-            enabled = !anyActionRunning,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = "Find Device"
-            )
-        }
+        DiagnosticsActionRow(
+            label = "Manage Device",
+            icon = Icons.Filled.Settings,
+            trailingIcon =
+                Icons.Filled
+                    .KeyboardArrowRight,
+            onClick = onManageDevice,
+            enabled = !anyActionRunning
+        )
 
         feedbackMessage?.let { message ->
             HorizontalDivider(
@@ -498,6 +902,59 @@ private fun DiagnosticsActionsCard(
             InlineStatusMessage(
                 message = message,
                 isError = feedbackIsError
+            )
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticsActionRow(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    trailingIcon: ImageVector? = null
+) {
+    TextButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding =
+            PaddingValues(
+                horizontal = 0.dp,
+                vertical =
+                    OreoSpacing.StackSmall
+            )
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier =
+                Modifier.size(
+                    OreoSpacing.StandardIcon
+                )
+        )
+
+        Text(
+            text = label,
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .padding(
+                        horizontal =
+                            OreoSpacing.StackMedium
+                    ),
+            textAlign = TextAlign.Start
+        )
+
+        trailingIcon?.let { currentIcon ->
+            Icon(
+                imageVector = currentIcon,
+                contentDescription = null,
+                modifier =
+                    Modifier.size(
+                        OreoSpacing.StandardIcon
+                    )
             )
         }
     }
@@ -536,6 +993,102 @@ private fun InlineStatusMessage(
                 color = messageColor,
                 textAlign = TextAlign.End
             )
+        }
+    }
+}
+
+@Composable
+private fun TechnicalDetailsSection(
+    state: DeviceStatusRepositoryState,
+    status: DeviceStatusResponse,
+    outlet1Name: String,
+    outlet2Name: String
+) {
+    var expanded by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    Column(
+        verticalArrangement =
+            Arrangement.spacedBy(
+                OreoSpacing.StackMedium
+            )
+    ) {
+        OutlinedButton(
+            onClick = {
+                expanded = !expanded
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "Technical Details",
+                textAlign = TextAlign.Start,
+                modifier = Modifier.weight(1f)
+            )
+
+            Icon(
+                imageVector =
+                    if (expanded) {
+                        Icons.Filled
+                            .KeyboardArrowUp
+                    } else {
+                        Icons.Filled
+                            .KeyboardArrowDown
+                    },
+                contentDescription =
+                    if (expanded) {
+                        "Collapse technical details"
+                    } else {
+                        "Expand technical details"
+                    }
+            )
+        }
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter =
+                expandVertically() +
+                        fadeIn(),
+            exit =
+                shrinkVertically() +
+                        fadeOut()
+        ) {
+            Column(
+                verticalArrangement =
+                    Arrangement.spacedBy(
+                        OreoSpacing.StackMedium
+                    )
+            ) {
+                ConnectionSummaryCard(
+                    state = state
+                )
+
+                NetworkInformationCard(
+                    status = status
+                )
+
+                TimeInformationCard(
+                    status = status
+                )
+
+                RelayInformationCard(
+                    status = status,
+                    outlet1Name = outlet1Name,
+                    outlet2Name = outlet2Name
+                )
+
+                DeviceInformationCard(
+                    status = status
+                )
+
+                SystemInformationCard(
+                    status = status
+                )
+
+                ReadinessInformationCard(
+                    status = status
+                )
+            }
         }
     }
 }
@@ -601,13 +1154,15 @@ private fun TimeInformationCard(
 
 @Composable
 private fun RelayInformationCard(
-    status: DeviceStatusResponse
+    status: DeviceStatusResponse,
+    outlet1Name: String,
+    outlet2Name: String
 ) {
     DiagnosticsCard(
         title = "Relays and schedules"
     ) {
         Text(
-            text = "Relay 1",
+            text = "OUTLET 1 - $outlet1Name",
             style =
                 MaterialTheme.typography
                     .titleMedium,
@@ -667,7 +1222,7 @@ private fun RelayInformationCard(
         HorizontalDivider()
 
         Text(
-            text = "Relay 2",
+            text = "OUTLET 2 - $outlet2Name",
             style =
                 MaterialTheme.typography
                     .titleMedium,
@@ -868,76 +1423,6 @@ private fun DiagnosticsLoadingCard() {
 }
 
 @Composable
-private fun DiagnosticsUnavailableCard(
-    state: DeviceStatusRepositoryState
-) {
-    val title =
-        if (
-            state.connectionState ==
-            DeviceConnectionState.NO_SAVED_DEVICE
-        ) {
-            "No saved device"
-        } else {
-            "Device status unavailable"
-        }
-
-    val message =
-        state.errorMessage
-            ?: "No confirmed device status has been received."
-
-    MessageCard(
-        title = title,
-        message = message
-    )
-}
-
-@Composable
-private fun MessageCard(
-    title: String,
-    message: String
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = OreoShapeTokens.Large,
-        color =
-            MaterialTheme.colorScheme
-                .surfaceContainerLowest,
-        border = BorderStroke(
-            width = 1.dp,
-            color =
-                MaterialTheme.colorScheme
-                    .outlineVariant
-                    .copy(alpha = 0.35f)
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(
-                OreoSpacing.StackMedium
-            ),
-            verticalArrangement =
-                Arrangement.spacedBy(
-                    OreoSpacing.StackSmall
-                )
-        ) {
-            Text(
-                text = title,
-                style =
-                    MaterialTheme.typography
-                        .titleMedium,
-                color =
-                    MaterialTheme.colorScheme
-                        .onSurface
-            )
-
-            InlineStatusMessage(
-                message = message,
-                isError = true
-            )
-        }
-    }
-}
-
-@Composable
 private fun DiagnosticsCard(
     title: String,
     content: @Composable () -> Unit
@@ -1059,6 +1544,17 @@ private fun DiagnosticValueRow(
                 )
             }
         }
+    }
+}
+
+internal fun wifiQualityLabel(
+    rssi: Int
+): String {
+    return when {
+        rssi >= -50 -> "Strong"
+        rssi >= -60 -> "Good"
+        rssi >= -70 -> "Fair"
+        else -> "Weak"
     }
 }
 
@@ -1233,25 +1729,23 @@ private fun DiagnosticsLargeFontPreview() {
                         OreoSpacing.StackMedium
                     )
             ) {
-                DiagnosticsCard(
-                    title = "Connection"
-                ) {
-                    DiagnosticValueRow(
-                        label = "Device address",
-                        value =
-                            "192.168.8.113:8080"
-                    )
-                }
+                DeviceHealthSummaryCard(
+                    state =
+                        DeviceStatusRepositoryState(
+                            connectionState =
+                                DeviceConnectionState
+                                    .OFFLINE
+                        ),
+                    onCopyDeviceAddress = {}
+                )
 
                 DiagnosticsActionsCard(
                     state = DiagnosticsUiState(),
                     feedbackMessage = null,
                     feedbackIsError = false,
                     onRefreshDeviceStatus = {},
-                    onTestConnection = {},
                     onRequestTimeSync = {},
-                    onRunDiscoveryAgain = {},
-                    onCopyDeviceAddress = {}
+                    onManageDevice = {}
                 )
             }
         }
