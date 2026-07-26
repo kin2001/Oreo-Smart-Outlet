@@ -1,36 +1,26 @@
 package com.iotkin.smartoutlet.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.iotkin.smartoutlet.ui.navigation.AppDestination
 import com.iotkin.smartoutlet.ui.navigation.bottomNavigationDestinations
-import com.iotkin.smartoutlet.ui.theme.OreoShapeTokens
+import com.iotkin.smartoutlet.ui.navigation.isBottomNavigationRoute
 import com.iotkin.smartoutlet.ui.theme.OreoSmartOutletTheme
 import com.iotkin.smartoutlet.ui.theme.OreoSpacing
-import androidx.compose.ui.platform.testTag
 
 @Composable
 fun OreoAppScaffold(
@@ -49,20 +39,22 @@ fun OreoAppScaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            OreoBottomNavigation(
-                currentRoute = currentRoute,
-                onDestinationSelected = { destination ->
-                    if (currentRoute != destination.route) {
-                        navController.navigate(destination.route) {
-                            popUpTo(AppDestination.HOME.route) {
-                                inclusive = false
-                            }
+            if (isBottomNavigationRoute(currentRoute)) {
+                OreoBottomNavigation(
+                    currentRoute = currentRoute,
+                    onDestinationSelected = { destination ->
+                        if (currentRoute != destination.route) {
+                            navController.navigate(destination.route) {
+                                popUpTo(AppDestination.HOME.route) {
+                                    inclusive = false
+                                }
 
-                            launchSingleTop = true
+                                launchSingleTop = true
+                            }
                         }
                     }
-                }
-            )
+                )
+            }
         },
         content = content
     )
@@ -74,106 +66,60 @@ fun OreoBottomNavigation(
     onDestinationSelected: (AppDestination) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp,
-        shadowElevation = 8.dp
+    NavigationBar(
+        modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
-        Column {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(
-                        MaterialTheme.colorScheme.outlineVariant.copy(
-                            alpha = 0.3f
-                        )
-                    )
-            )
+        bottomNavigationDestinations.forEach { destination ->
+            val selected =
+                currentRoute == destination.route
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(
-                        OreoSpacing.BottomNavigationHeight
-                    )
-            ) {
-                bottomNavigationDestinations.forEach { destination ->
-                    val selected =
-                        currentRoute == destination.route
-
-                    BottomNavigationDestination(
-                        destination = destination,
-                        selected = selected,
-                        onClick = {
-                            onDestinationSelected(destination)
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun BottomNavigationDestination(
-    destination: AppDestination,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val contentColor = if (selected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
-    Column(
-        modifier = modifier
-            .fillMaxHeight()
-            .testTag(
-                "bottom_nav_${destination.route}"
-            )
-            .selectable(
+            NavigationBarItem(
                 selected = selected,
-                role = Role.Tab,
-                onClick = onClick
-            ),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(
-                    width = 40.dp,
-                    height = 28.dp
-                )
-                .background(
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.primary.copy(
-                            alpha = 0.12f
+                onClick = {
+                    onDestinationSelected(destination)
+                },
+                icon = {
+                    Icon(
+                        imageVector = destination.icon,
+                        contentDescription =
+                            destination.label,
+                        modifier = Modifier.size(
+                            OreoSpacing.StandardIcon
                         )
-                    } else {
-                        Color.Transparent
-                    },
-                    shape = OreoShapeTokens.Pill
+                    )
+                },
+                label = {
+                    Text(
+                        text = destination.label,
+                        style = MaterialTheme.typography
+                            .labelSmall
+                    )
+                },
+                modifier = Modifier.testTag(
+                    "bottom_nav_${destination.route}"
                 ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = destination.iconText,
-                style = MaterialTheme.typography.bodyLarge,
-                color = contentColor
+                colors =
+                    NavigationBarItemDefaults.colors(
+                        selectedIconColor =
+                            MaterialTheme.colorScheme
+                                .primary,
+                        selectedTextColor =
+                            MaterialTheme.colorScheme
+                                .primary,
+                        indicatorColor =
+                            MaterialTheme.colorScheme
+                                .primary
+                                .copy(alpha = 0.12f),
+                        unselectedIconColor =
+                            MaterialTheme.colorScheme
+                                .onSurfaceVariant,
+                        unselectedTextColor =
+                            MaterialTheme.colorScheme
+                                .onSurfaceVariant
+                    )
             )
         }
-
-        Text(
-            text = destination.label,
-            style = MaterialTheme.typography.labelSmall,
-            color = contentColor
-        )
     }
 }
 

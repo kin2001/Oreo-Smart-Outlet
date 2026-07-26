@@ -145,6 +145,21 @@ private fun RootNavigationHost(
             route = RootRoutes.CONNECTION
         ) {
             DeviceConnectionSetupRoute(
+                onBack =
+                    if (
+                        navController
+                            .previousBackStackEntry
+                            ?.destination
+                            ?.route ==
+                        RootRoutes.MAIN
+                    ) {
+                        {
+                            navController
+                                .popBackStack()
+                        }
+                    } else {
+                        null
+                    },
                 onDeviceSaved = {
                     navController.navigate(
                         RootRoutes.MAIN

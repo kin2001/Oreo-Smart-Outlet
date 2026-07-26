@@ -3,13 +3,18 @@ package com.iotkin.smartoutlet.ui.screens.connection
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -53,6 +58,7 @@ fun DeviceConnectionSetupScreen(
     onTestConnection: () -> Unit,
     onSaveDevice: () -> Unit,
     onDisconnectDevice: () -> Unit = {},
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var showDisconnectConfirmation by
@@ -77,6 +83,29 @@ fun DeviceConnectionSetupScreen(
                 OreoSpacing.StackLarge
             )
         ) {
+            onBack?.let { backAction ->
+                TextButton(
+                    onClick = backAction
+                ) {
+                    Icon(
+                        imageVector =
+                            Icons.AutoMirrored
+                                .Filled.ArrowBack,
+                        contentDescription = null
+                    )
+
+                    Spacer(
+                        modifier = Modifier.width(
+                            OreoSpacing.StackSmall
+                        )
+                    )
+
+                    Text(
+                        text = "Back"
+                    )
+                }
+            }
+
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -537,6 +566,7 @@ private fun SaveDeviceErrorCard(
 fun DeviceConnectionSetupRoute(
     onDeviceSaved: () -> Unit,
     onDeviceDisconnected: () -> Unit = {},
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     setupViewModel: DeviceConnectionSetupViewModel = viewModel()
 ) {
@@ -604,6 +634,7 @@ fun DeviceConnectionSetupRoute(
             setupViewModel::testConnection,
         onSaveDevice =
             setupViewModel::saveDevice,
+        onBack = onBack,
         modifier = modifier
     )
 }

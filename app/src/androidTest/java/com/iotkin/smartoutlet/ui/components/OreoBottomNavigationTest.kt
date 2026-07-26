@@ -3,6 +3,7 @@ package com.iotkin.smartoutlet.ui.components
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -48,6 +49,17 @@ class OreoBottomNavigationTest {
         composeTestRule
             .onNodeWithTag("bottom_nav_settings")
             .assertIsDisplayed()
+
+        listOf(
+            "Home",
+            "Schedule",
+            "Diagnostics",
+            "Settings"
+        ).forEach { label ->
+            composeTestRule
+                .onNodeWithContentDescription(label)
+                .assertIsDisplayed()
+        }
     }
 
     @Test
