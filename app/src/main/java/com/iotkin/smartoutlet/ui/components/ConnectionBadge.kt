@@ -21,8 +21,10 @@ import com.iotkin.smartoutlet.ui.theme.OreoSmartOutletTheme
 import com.iotkin.smartoutlet.ui.theme.OreoSpacing
 
 enum class ConnectionStatus {
+    Saved,
     Online,
     Reconnecting,
+    Stale,
     Offline
 }
 
@@ -76,10 +78,16 @@ private fun connectionStatusColor(
     status: ConnectionStatus
 ): Color {
     return when (status) {
+        ConnectionStatus.Saved ->
+            MaterialTheme.colorScheme.onSurfaceVariant
+
         ConnectionStatus.Online ->
             MaterialTheme.colorScheme.primary
 
         ConnectionStatus.Reconnecting ->
+            Color(0xFFF59E0B)
+
+        ConnectionStatus.Stale ->
             Color(0xFFF59E0B)
 
         ConnectionStatus.Offline ->
@@ -91,8 +99,10 @@ private fun connectionStatusText(
     status: ConnectionStatus
 ): String {
     return when (status) {
+        ConnectionStatus.Saved -> "Saved"
         ConnectionStatus.Online -> "Online"
         ConnectionStatus.Reconnecting -> "Reconnecting"
+        ConnectionStatus.Stale -> "Stale"
         ConnectionStatus.Offline -> "Offline"
     }
 }

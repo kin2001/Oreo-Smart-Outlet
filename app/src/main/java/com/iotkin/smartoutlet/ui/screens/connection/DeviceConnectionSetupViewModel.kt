@@ -94,15 +94,17 @@ class DeviceConnectionSetupViewModel(
                                         .toString(),
                                 ipError = null,
                                 portError = null,
-                                isDeviceVerified = true,
-                                verifiedAddress =
-                                    address,
+                                isDeviceVerified = false,
+                                hasVerifiedLiveResponse =
+                                    false,
+                                verifiedAddress = null,
                                 connectionIssue = null,
-                                connectionMessage =
-                                    "Saved device address loaded.",
+                                connectionMessage = null,
                                 saveError = null
                             )
                         }
+
+                        discoveryCoordinator.stop()
                     }
                 }
         }
@@ -113,6 +115,9 @@ class DeviceConnectionSetupViewModel(
                 .collect { settings ->
                     _uiState.update {
                         it.copy(
+                            friendlyDeviceName =
+                                settings
+                                    .friendlyDeviceName,
                             automaticDiscoveryEnabled =
                                 settings
                                     .automaticDiscoveryEnabled
@@ -125,7 +130,8 @@ class DeviceConnectionSetupViewModel(
     fun startDiscovery() {
         if (
             !_uiState.value
-                .automaticDiscoveryEnabled
+                .automaticDiscoveryEnabled ||
+            _uiState.value.savedAddress != null
         ) {
             return
         }
@@ -158,10 +164,11 @@ class DeviceConnectionSetupViewModel(
                 ipError = null,
                 portError = null,
                 isDeviceVerified = true,
+                hasVerifiedLiveResponse = true,
                 verifiedAddress = device.address,
                 connectionIssue = null,
                 connectionMessage =
-                    "${device.serviceName} was found and verified.",
+                    "Connected to ${device.serviceName}.",
                 saveError = null
             )
         }
@@ -175,6 +182,7 @@ class DeviceConnectionSetupViewModel(
                 ipAddress = value,
                 ipError = null,
                 isDeviceVerified = false,
+                hasVerifiedLiveResponse = false,
                 verifiedAddress = null,
                 connectionIssue = null,
                 connectionMessage = null,
@@ -191,6 +199,7 @@ class DeviceConnectionSetupViewModel(
                 port = value,
                 portError = null,
                 isDeviceVerified = false,
+                hasVerifiedLiveResponse = false,
                 verifiedAddress = null,
                 connectionIssue = null,
                 connectionMessage = null,
@@ -212,7 +221,6 @@ class DeviceConnectionSetupViewModel(
                 ipError = result.ipError,
                 portError = result.portError,
                 isDeviceVerified = false,
-                verifiedAddress = null,
                 connectionIssue = null,
                 connectionMessage = null,
                 saveError = null
@@ -237,7 +245,6 @@ class DeviceConnectionSetupViewModel(
             currentState.copy(
                 isTestingConnection = true,
                 isDeviceVerified = false,
-                verifiedAddress = null,
                 connectionIssue = null,
                 connectionMessage = null,
                 saveError = null
@@ -255,10 +262,12 @@ class DeviceConnectionSetupViewModel(
                         currentState.copy(
                             isTestingConnection = false,
                             isDeviceVerified = true,
+                            hasVerifiedLiveResponse =
+                                true,
                             verifiedAddress = address,
                             connectionIssue = null,
                             connectionMessage =
-                                "${result.status.device} responded successfully."
+                                "Connected to ${currentState.friendlyDeviceName}."
                         )
                     }
 
@@ -266,7 +275,6 @@ class DeviceConnectionSetupViewModel(
                         currentState.copy(
                             isTestingConnection = false,
                             isDeviceVerified = false,
-                            verifiedAddress = null,
                             connectionIssue =
                                 ConnectionIssueType.TIMEOUT,
                             connectionMessage =
@@ -278,7 +286,6 @@ class DeviceConnectionSetupViewModel(
                         currentState.copy(
                             isTestingConnection = false,
                             isDeviceVerified = false,
-                            verifiedAddress = null,
                             connectionIssue =
                                 ConnectionIssueType.INVALID_DEVICE,
                             connectionMessage =
@@ -383,6 +390,9 @@ class DeviceConnectionSetupViewModel(
 
                 _uiState.value =
                     DeviceConnectionSetupUiState(
+                        friendlyDeviceName =
+                            currentState
+                                .friendlyDeviceName,
                         automaticDiscoveryEnabled =
                             currentState
                                 .automaticDiscoveryEnabled,
@@ -422,7 +432,6 @@ class DeviceConnectionSetupViewModel(
         return copy(
             isTestingConnection = false,
             isDeviceVerified = false,
-            verifiedAddress = null,
             connectionIssue =
                 ConnectionIssueType.CONNECTION_FAILED,
             connectionMessage = message
