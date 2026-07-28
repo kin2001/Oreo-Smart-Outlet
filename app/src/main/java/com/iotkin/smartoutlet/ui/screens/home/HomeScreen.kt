@@ -1,14 +1,18 @@
 package com.iotkin.smartoutlet.ui.screens.home
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -437,26 +441,27 @@ private fun ConnectionStatusPill(
                 MaterialTheme.colorScheme.error
         }
 
-    Surface(
-        shape = OreoShapeTokens.ExtraLarge,
-        color = color.copy(alpha = 0.10f),
-        border = BorderStroke(
-            width = 1.dp,
-            color = color.copy(alpha = 0.35f)
-        )
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(
+            OreoSpacing.StackSmall
+        ),
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .background(
+                    color = color,
+                    shape = CircleShape
+                )
+        )
+
         Text(
             text = text,
             style =
                 MaterialTheme.typography
                     .labelLarge,
-            color = color,
-            modifier = Modifier.padding(
-                horizontal =
-                    OreoSpacing.StackMedium,
-                vertical =
-                    OreoSpacing.StackSmall
-            )
+            color = color
         )
     }
 }

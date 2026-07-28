@@ -1,5 +1,6 @@
 package com.iotkin.smartoutlet.ui.screens.schedule
 
+import android.app.TimePickerDialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,12 +10,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -24,13 +22,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iotkin.smartoutlet.data.model.RelayNumber
 import com.iotkin.smartoutlet.data.repository.DeviceConnectionState
+import com.iotkin.smartoutlet.data.settings.TimeFormatPreference
 import com.iotkin.smartoutlet.ui.screens.diagnostics.DiagnosticsViewModel
 import com.iotkin.smartoutlet.ui.theme.OreoShapeTokens
 import com.iotkin.smartoutlet.ui.theme.OreoSpacing
@@ -95,6 +94,8 @@ fun EditScheduleRoute(
         outletName =
             appSettings
                 .outletFriendlyName(relay),
+        timeFormatPreference =
+            appSettings.timeFormatPreference,
         state = editorState,
         statusState = statusState,
         deviceAvailable = deviceAvailable,
@@ -124,6 +125,8 @@ fun EditScheduleRoute(
 fun EditScheduleScreen(
     relay: RelayNumber,
     outletName: String,
+    timeFormatPreference:
+        TimeFormatPreference,
     state: ScheduleEditorUiState,
     statusState:
     DeviceStatusRepositoryState,
@@ -221,12 +224,20 @@ fun EditScheduleScreen(
                     supportingText =
                         "The outlet turns ON when this time is reached.",
                     time = state.onTime,
+                    timeFormatPreference =
+                        timeFormatPreference,
                     enabled = !state.isSaving,
-                    onHourChange = onOnHourChange,
-                    onMinuteChange =
-                        onOnMinuteChange,
-                    onMeridiemChange =
-                        onOnMeridiemChange
+                    onTimeChange = { selected ->
+                        onOnHourChange(
+                            selected.hourText
+                        )
+                        onOnMinuteChange(
+                            selected.minuteText
+                        )
+                        onOnMeridiemChange(
+                            selected.meridiem
+                        )
+                    }
                 )
             }
 
@@ -236,12 +247,20 @@ fun EditScheduleScreen(
                     supportingText =
                         "The outlet turns OFF when this time is reached.",
                     time = state.offTime,
+                    timeFormatPreference =
+                        timeFormatPreference,
                     enabled = !state.isSaving,
-                    onHourChange = onOffHourChange,
-                    onMinuteChange =
-                        onOffMinuteChange,
-                    onMeridiemChange =
-                        onOffMeridiemChange
+                    onTimeChange = { selected ->
+                        onOffHourChange(
+                            selected.hourText
+                        )
+                        onOffMinuteChange(
+                            selected.minuteText
+                        )
+                        onOffMeridiemChange(
+                            selected.meridiem
+                        )
+                    }
                 )
             }
 
@@ -438,12 +457,31 @@ private fun ScheduleTimeEditorCard(
     title: String,
     supportingText: String,
     time: ScheduleTimeInput,
+    timeFormatPreference:
+        TimeFormatPreference,
     enabled: Boolean,
-    onHourChange: (String) -> Unit,
-    onMinuteChange: (String) -> Unit,
-    onMeridiemChange:
-        (ScheduleMeridiem) -> Unit
+    onTimeChange: (ScheduleTimeInput) -> Unit
 ) {
+    val context = LocalContext.current
+
+    val hour =
+        time.to24Hour()
+
+    val minute =
+        time.minuteValue()
+
+    val displayedTime =
+        if (hour != null && minute != null) {
+            formatScheduleTime(
+                hour = hour,
+                minute = minute,
+                timeFormatPreference =
+                    timeFormatPreference
+            )
+        } else {
+            "Choose time"
+        }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = OreoShapeTokens.ExtraLarge,
@@ -494,102 +532,84 @@ private fun ScheduleTimeEditorCard(
                 )
             }
 
-            Row(
+            Surface(
+                onClick = {
+                    TimePickerDialog(
+                        context,
+                        { _, selectedHour, selectedMinute ->
+                            onTimeChange(
+                                ScheduleTimeInput
+                                    .from24Hour(
+                                        hour =
+                                            selectedHour,
+                                        minute =
+                                            selectedMinute
+                                    )
+                            )
+                        },
+                        hour ?: 0,
+                        minute ?: 0,
+                        timeFormatPreference ==
+                            TimeFormatPreference
+                                .TWENTY_FOUR_HOUR
+                    ).show()
+                },
+                enabled = enabled,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.spacedBy(
-                        OreoSpacing.StackSmall
+                shape = OreoShapeTokens.Medium,
+                color =
+                    MaterialTheme.colorScheme
+                        .surfaceContainerLow,
+                border = BorderStroke(
+                    width = 1.dp,
+                    color =
+                        MaterialTheme.colorScheme
+                            .outlineVariant
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(
+                        OreoSpacing.StackMedium
                     ),
-                verticalAlignment =
-                    Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = time.hourText,
-                    onValueChange = onHourChange,
-                    enabled = enabled,
-                    label = {
-                        Text(
-                            text = "Hour"
+                    verticalArrangement =
+                        Arrangement.spacedBy(
+                            OreoSpacing.StackSmall
                         )
-                    },
-                    singleLine = true,
-                    keyboardOptions =
-                        KeyboardOptions(
-                            keyboardType =
-                                KeyboardType.Number
-                        ),
-                    modifier = Modifier.weight(1f)
-                )
-
-                Text(
-                    text = ":",
-                    style =
-                        MaterialTheme.typography
-                            .headlineMedium
-                )
-
-                OutlinedTextField(
-                    value = time.minuteText,
-                    onValueChange =
-                        onMinuteChange,
-                    enabled = enabled,
-                    label = {
-                        Text(
-                            text = "Minute"
-                        )
-                    },
-                    singleLine = true,
-                    keyboardOptions =
-                        KeyboardOptions(
-                            keyboardType =
-                                KeyboardType.Number
-                        ),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.spacedBy(
-                        OreoSpacing.StackSmall
+                ) {
+                    Text(
+                        text = displayedTime,
+                        style =
+                            MaterialTheme.typography
+                                .headlineMedium,
+                        color =
+                            if (enabled) {
+                                MaterialTheme
+                                    .colorScheme
+                                    .onSurface
+                            } else {
+                                MaterialTheme
+                                    .colorScheme
+                                    .onSurfaceVariant
+                            }
                     )
-            ) {
-                FilterChip(
-                    selected =
-                        time.meridiem ==
-                                ScheduleMeridiem.AM,
-                    onClick = {
-                        onMeridiemChange(
-                            ScheduleMeridiem.AM
-                        )
-                    },
-                    enabled = enabled,
-                    label = {
-                        Text(
-                            text = "AM"
-                        )
-                    },
-                    modifier = Modifier.weight(1f)
-                )
 
-                FilterChip(
-                    selected =
-                        time.meridiem ==
-                                ScheduleMeridiem.PM,
-                    onClick = {
-                        onMeridiemChange(
-                            ScheduleMeridiem.PM
-                        )
-                    },
-                    enabled = enabled,
-                    label = {
-                        Text(
-                            text = "PM"
-                        )
-                    },
-                    modifier = Modifier.weight(1f)
-                )
+                    Text(
+                        text = "Tap to change",
+                        style =
+                            MaterialTheme.typography
+                                .labelLarge,
+                        color =
+                            if (enabled) {
+                                MaterialTheme
+                                    .colorScheme
+                                    .primary
+                            } else {
+                                MaterialTheme
+                                    .colorScheme
+                                    .onSurfaceVariant
+                            }
+                    )
+                }
             }
         }
     }

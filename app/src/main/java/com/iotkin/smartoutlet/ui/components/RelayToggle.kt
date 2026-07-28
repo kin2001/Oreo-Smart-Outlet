@@ -2,6 +2,7 @@ package com.iotkin.smartoutlet.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
@@ -36,11 +37,17 @@ fun RelayToggle(
         } else {
             MaterialTheme.colorScheme.surfaceContainerHighest
         },
+        animationSpec = tween(
+            durationMillis = 200
+        ),
         label = "RelayToggleTrackColor"
     )
 
     val thumbOffset by animateDpAsState(
         targetValue = if (checked) 26.dp else 2.dp,
+        animationSpec = tween(
+            durationMillis = 200
+        ),
         label = "RelayToggleThumbOffset"
     )
 

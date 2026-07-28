@@ -1,7 +1,6 @@
 package com.iotkin.smartoutlet.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -16,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.iotkin.smartoutlet.ui.theme.OreoShapeTokens
 import com.iotkin.smartoutlet.ui.theme.OreoSmartOutletTheme
 import com.iotkin.smartoutlet.ui.theme.OreoSpacing
 
@@ -37,20 +35,7 @@ fun ConnectionBadge(
     val statusText = connectionStatusText(status)
 
     Row(
-        modifier = modifier
-            .background(
-                color = statusColor.copy(alpha = 0.12f),
-                shape = OreoShapeTokens.Pill
-            )
-            .border(
-                width = 1.dp,
-                color = statusColor.copy(alpha = 0.28f),
-                shape = OreoShapeTokens.Pill
-            )
-            .padding(
-                horizontal = OreoSpacing.StackMedium,
-                vertical = OreoSpacing.StackSmall
-            ),
+        modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(
             OreoSpacing.StackSmall
         ),

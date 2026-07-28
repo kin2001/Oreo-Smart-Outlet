@@ -2,7 +2,9 @@ package com.iotkin.smartoutlet.ui.screens.connection
 
 import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -42,6 +44,27 @@ class DeviceConnectionSetupScreenTest {
         composeTestRule
             .onNodeWithText("Manage Device")
             .assertDoesNotExist()
+    }
+
+    @Test
+    fun busyDiscoveryRefreshRemainsLabeledAndDisabled() {
+        showScreen(
+            state =
+                DeviceConnectionSetupUiState(
+                    discovery =
+                        DeviceDiscoveryUiState(
+                            isDiscovering = true
+                        )
+                )
+        )
+
+        composeTestRule
+            .onNodeWithContentDescription(
+                "Refreshing nearby outlets"
+            )
+            .performScrollTo()
+            .assertIsDisplayed()
+            .assertIsNotEnabled()
     }
 
     @Test

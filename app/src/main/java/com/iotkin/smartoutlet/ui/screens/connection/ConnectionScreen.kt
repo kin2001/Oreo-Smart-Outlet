@@ -1,6 +1,11 @@
 package com.iotkin.smartoutlet.ui.screens.connection
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -146,7 +151,29 @@ fun DeviceConnectionSetupScreen(
                 )
 
                 AnimatedVisibility(
-                    visible = showFindAnotherOutlet
+                    visible = showFindAnotherOutlet,
+                    enter =
+                        expandVertically(
+                            animationSpec = tween(
+                                durationMillis = 200
+                            )
+                        ) +
+                                fadeIn(
+                                    animationSpec = tween(
+                                        durationMillis = 200
+                                    )
+                                ),
+                    exit =
+                        shrinkVertically(
+                            animationSpec = tween(
+                                durationMillis = 200
+                            )
+                        ) +
+                                fadeOut(
+                                    animationSpec = tween(
+                                        durationMillis = 200
+                                    )
+                                )
                 ) {
                     DiscoveryContent(
                         state = state,
@@ -208,7 +235,29 @@ fun DeviceConnectionSetupScreen(
                 )
 
                 AnimatedVisibility(
-                    visible = showManualEntry
+                    visible = showManualEntry,
+                    enter =
+                        expandVertically(
+                            animationSpec = tween(
+                                durationMillis = 200
+                            )
+                        ) +
+                                fadeIn(
+                                    animationSpec = tween(
+                                        durationMillis = 200
+                                    )
+                                ),
+                    exit =
+                        shrinkVertically(
+                            animationSpec = tween(
+                                durationMillis = 200
+                            )
+                        ) +
+                                fadeOut(
+                                    animationSpec = tween(
+                                        durationMillis = 200
+                                    )
+                                )
                 ) {
                     ConnectionAddressForm(
                         state = state,

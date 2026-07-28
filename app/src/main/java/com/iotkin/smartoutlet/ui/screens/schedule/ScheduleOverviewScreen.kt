@@ -1,7 +1,9 @@
 package com.iotkin.smartoutlet.ui.screens.schedule
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -9,8 +11,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Button
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -31,13 +34,13 @@ import com.iotkin.smartoutlet.data.model.RelayStatusResponse
 import com.iotkin.smartoutlet.data.repository.DeviceConnectionState
 import com.iotkin.smartoutlet.data.repository.DeviceStatusRepositoryState
 import com.iotkin.smartoutlet.data.settings.TimeFormatPreference
+import com.iotkin.smartoutlet.ui.components.OreoSecondaryButton
 import com.iotkin.smartoutlet.ui.screens.diagnostics.DiagnosticsViewModel
 import com.iotkin.smartoutlet.ui.theme.OreoShapeTokens
 import com.iotkin.smartoutlet.ui.theme.OreoSmartOutletTheme
 import com.iotkin.smartoutlet.ui.theme.OreoSpacing
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import java.time.Duration
+import java.time.OffsetDateTime
 import java.util.Locale
 import com.iotkin.smartoutlet.ui.components.connectionDescription
 import com.iotkin.smartoutlet.ui.components.connectionLabel
@@ -130,9 +133,12 @@ fun ScheduleOverviewScreen(
                         outletName = outlet1Name,
                         relayStatus = status.relay1,
                         deviceAvailable = deviceAvailable,
-                        lastRefreshEpochMillis =
-                            statusState
-                                .lastSuccessfulRefreshEpochMillis,
+                        confirmedPhilippineTime =
+                            status.philippineTime
+                                .takeIf {
+                                    deviceAvailable &&
+                                            status.timeValid
+                                },
                         timeFormatPreference =
                             timeFormatPreference,
                         onEdit = {
@@ -149,9 +155,12 @@ fun ScheduleOverviewScreen(
                         outletName = outlet2Name,
                         relayStatus = status.relay2,
                         deviceAvailable = deviceAvailable,
-                        lastRefreshEpochMillis =
-                            statusState
-                                .lastSuccessfulRefreshEpochMillis,
+                        confirmedPhilippineTime =
+                            status.philippineTime
+                                .takeIf {
+                                    deviceAvailable &&
+                                            status.timeValid
+                                },
                         timeFormatPreference =
                             timeFormatPreference,
                         onEdit = {
@@ -185,18 +194,6 @@ fun ScheduleOverviewScreen(
                     }
                 }
 
-                item {
-                    Text(
-                        text =
-                            "Next-event information is hidden because the device does not provide a confirmed next scheduled event.",
-                        style =
-                            MaterialTheme.typography
-                                .bodySmall,
-                        color =
-                            MaterialTheme.colorScheme
-                                .onSurfaceVariant
-                    )
-                }
             }
         }
     }
@@ -279,31 +276,28 @@ private fun ScheduleConnectionBadge(
                 MaterialTheme.colorScheme.error
         }
 
-    Surface(
+    Row(
         modifier = modifier,
-        shape = OreoShapeTokens.ExtraLarge,
-        color = badgeColor.copy(
-            alpha = 0.10f
+        horizontalArrangement = Arrangement.spacedBy(
+            OreoSpacing.StackSmall
         ),
-        border = BorderStroke(
-            width = 1.dp,
-            color = badgeColor.copy(
-                alpha = 0.35f
-            )
-        )
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .background(
+                    color = badgeColor,
+                    shape = CircleShape
+                )
+        )
+
         Text(
             text = label,
             style =
                 MaterialTheme.typography
                     .labelLarge,
-            color = badgeColor,
-            modifier = Modifier.padding(
-                horizontal =
-                    OreoSpacing.StackMedium,
-                vertical =
-                    OreoSpacing.StackSmall
-            )
+            color = badgeColor
         )
     }
 }
@@ -314,7 +308,7 @@ private fun OutletScheduleCard(
     outletName: String,
     relayStatus: RelayStatusResponse,
     deviceAvailable: Boolean,
-    lastRefreshEpochMillis: Long?,
+    confirmedPhilippineTime: String?,
     timeFormatPreference:
         TimeFormatPreference,
     onEdit: () -> Unit
@@ -410,11 +404,10 @@ private fun OutletScheduleCard(
 
             Text(
                 text =
-                    formatScheduleRefresh(
-                        epochMillis =
-                            lastRefreshEpochMillis,
-                        timeFormatPreference =
-                            timeFormatPreference
+                    formatNextScheduleAction(
+                        schedule = schedule,
+                        confirmedPhilippineTime =
+                            confirmedPhilippineTime
                     ),
                 style =
                     MaterialTheme.typography
@@ -437,15 +430,12 @@ private fun OutletScheduleCard(
                 )
             }
 
-            Button(
+            OreoSecondaryButton(
+                text = "Change schedule",
                 onClick = onEdit,
                 enabled = deviceAvailable,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "Edit schedule"
-                )
-            }
+            )
         }
     }
 }
@@ -696,36 +686,82 @@ internal fun formatScheduleTime(
     )
 }
 
-private fun formatScheduleRefresh(
-    epochMillis: Long?,
-    timeFormatPreference:
-        TimeFormatPreference
+internal fun formatNextScheduleAction(
+    schedule: RelayScheduleResponse,
+    confirmedPhilippineTime: String?
 ): String {
-    if (epochMillis == null) {
-        return "Not refreshed"
+    if (!schedule.enabled) {
+        return "Next action: Schedule disabled"
     }
 
-    val formatter =
-        DateTimeFormatter.ofPattern(
-            when (timeFormatPreference) {
-                TimeFormatPreference
-                    .TWELVE_HOUR ->
-                    "MMM d, h:mm:ss a"
+    val currentTime =
+        confirmedPhilippineTime
+            ?.let { value ->
+                runCatching {
+                    OffsetDateTime.parse(value)
+                }.getOrNull()
+            }
+            ?: return "Next action: Waiting for live device time"
 
-                TimeFormatPreference
-                    .TWENTY_FOUR_HOUR ->
-                    "MMM d, HH:mm:ss"
-            },
-            Locale.US
+    fun nextOccurrence(
+        hour: Int,
+        minute: Int
+    ): OffsetDateTime {
+        val candidate =
+            currentTime
+                .withHour(hour.coerceIn(0, 23))
+                .withMinute(minute.coerceIn(0, 59))
+                .withSecond(0)
+                .withNano(0)
+
+        return if (candidate.isAfter(currentTime)) {
+            candidate
+        } else {
+            candidate.plusDays(1)
+        }
+    }
+
+    val nextOn =
+        nextOccurrence(
+            hour = schedule.onHour,
+            minute = schedule.onMinute
         )
 
-    val formatted =
-        Instant
-            .ofEpochMilli(epochMillis)
-            .atZone(ZoneId.systemDefault())
-            .format(formatter)
+    val nextOff =
+        nextOccurrence(
+            hour = schedule.offHour,
+            minute = schedule.offMinute
+        )
 
-    return "Last app refresh: $formatted"
+    val (action, nextTime) =
+        if (nextOn.isAfter(nextOff)) {
+            "Turns OFF" to nextOff
+        } else {
+            "Turns ON" to nextOn
+        }
+
+    val totalMinutes =
+        Duration
+            .between(currentTime, nextTime)
+            .toMinutes()
+
+    val timeUntil =
+        when {
+            totalMinutes < 1 ->
+                "less than 1 min"
+
+            totalMinutes < 60 ->
+                "$totalMinutes min"
+
+            totalMinutes % 60 == 0L ->
+                "${totalMinutes / 60} hr"
+
+            else ->
+                "${totalMinutes / 60} hr " +
+                        "${totalMinutes % 60} min"
+        }
+
+    return "Next action: $action in $timeUntil"
 }
 
 @Preview(
@@ -765,7 +801,8 @@ private fun OutletScheduleCardLargeFontPreview() {
                             )
                     ),
                 deviceAvailable = true,
-                lastRefreshEpochMillis = null,
+                confirmedPhilippineTime =
+                    "2026-07-28T19:00:00+08:00",
                 timeFormatPreference =
                     TimeFormatPreference
                         .TWELVE_HOUR,

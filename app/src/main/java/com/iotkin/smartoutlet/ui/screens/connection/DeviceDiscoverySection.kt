@@ -19,6 +19,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.iotkin.smartoutlet.data.model.DeviceAddress
@@ -35,6 +37,10 @@ fun DeviceDiscoverySection(
     onDeviceSelected: (DiscoveredSmartOutlet) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isRefreshing =
+        discoveryState.isDiscovering ||
+                discoveryState.isValidating
+
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = OreoShapeTokens.ExtraLarge,
@@ -93,12 +99,18 @@ fun DeviceDiscoverySection(
                 }
 
                 IconButton(
-                    onClick = onRefresh
+                    onClick = onRefresh,
+                    enabled = !isRefreshing,
+                    modifier = Modifier.semantics {
+                        contentDescription =
+                            if (isRefreshing) {
+                                "Refreshing nearby outlets"
+                            } else {
+                                "Refresh nearby outlets"
+                            }
+                    }
                 ) {
-                    if (
-                        discoveryState.isDiscovering ||
-                        discoveryState.isValidating
-                    ) {
+                    if (isRefreshing) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp),
                             strokeWidth = 2.dp,
@@ -110,8 +122,7 @@ fun DeviceDiscoverySection(
                         Icon(
                             imageVector =
                                 Icons.Filled.Refresh,
-                            contentDescription =
-                                "Refresh nearby outlets"
+                            contentDescription = null
                         )
                     }
                 }

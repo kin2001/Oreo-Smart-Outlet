@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -1059,11 +1060,27 @@ private fun TechnicalDetailsSection(
         AnimatedVisibility(
             visible = expanded,
             enter =
-                expandVertically() +
-                        fadeIn(),
+                expandVertically(
+                    animationSpec = tween(
+                        durationMillis = 200
+                    )
+                ) +
+                        fadeIn(
+                            animationSpec = tween(
+                                durationMillis = 200
+                            )
+                        ),
             exit =
-                shrinkVertically() +
-                        fadeOut()
+                shrinkVertically(
+                    animationSpec = tween(
+                        durationMillis = 200
+                    )
+                ) +
+                        fadeOut(
+                            animationSpec = tween(
+                                durationMillis = 200
+                            )
+                        )
         ) {
             Column(
                 verticalArrangement =
