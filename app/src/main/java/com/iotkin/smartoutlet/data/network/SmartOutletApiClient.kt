@@ -1,6 +1,7 @@
 package com.iotkin.smartoutlet.data.network
 
 import com.iotkin.smartoutlet.data.model.ApiErrorResponse
+import com.iotkin.smartoutlet.data.model.IndicatorSettingsRequest
 import com.iotkin.smartoutlet.data.model.RelayCommandRequest
 import com.iotkin.smartoutlet.data.model.RelayNumber
 import java.io.IOException
@@ -141,6 +142,78 @@ class SmartOutletApiClient(
             exception: IOException
         ) {
             DeviceActionResult.NetworkError(
+                message =
+                    "Unable to reach the device."
+            )
+        }
+    }
+
+    suspend fun setIndicatorsEnabled(
+        enabled: Boolean
+    ): IndicatorApiResult {
+        return try {
+            val response =
+                apiService.setIndicatorsEnabled(
+                    request =
+                        IndicatorSettingsRequest(
+                            enabled = enabled
+                        )
+                )
+
+            if (!response.isSuccessful) {
+                IndicatorApiResult.HttpError(
+                    statusCode = response.code(),
+                    message =
+                        readErrorMessage(response)
+                )
+            } else {
+                val body = response.body()
+
+                when {
+                    body == null -> {
+                        IndicatorApiResult.InvalidResponse(
+                            message =
+                                "The device returned an empty indicator response."
+                        )
+                    }
+
+                    !body.success -> {
+                        IndicatorApiResult.InvalidResponse(
+                            message =
+                                "The device rejected the indicator setting."
+                        )
+                    }
+
+                    body.indicatorsEnabled != enabled -> {
+                        IndicatorApiResult.InvalidResponse(
+                            message =
+                                "The device confirmed a different indicator setting."
+                        )
+                    }
+
+                    else -> {
+                        IndicatorApiResult.Success(
+                            confirmedEnabled =
+                                body.indicatorsEnabled
+                        )
+                    }
+                }
+            }
+        } catch (
+            exception: SocketTimeoutException
+        ) {
+            IndicatorApiResult.Timeout
+        } catch (
+            exception: SerializationException
+        ) {
+            IndicatorApiResult.InvalidResponse(
+                message =
+                    "The device returned an invalid indicator response."
+            )
+        } catch (
+            exception: IOException
+        ) {
+            IndicatorApiResult.NetworkError(
                 message =
                     "Unable to reach the device."
             )

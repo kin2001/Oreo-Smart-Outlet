@@ -69,6 +69,11 @@ class SmartOutletApiClientTest {
             success.status.apiPort
         )
 
+        assertEquals(
+            true,
+            success.status.indicatorsEnabled
+        )
+
         val request = server.takeRequest()
 
         assertEquals(
@@ -149,6 +154,128 @@ class SmartOutletApiClientTest {
         assertEquals(
             "Endpoint not found",
             httpError.message
+        )
+    }
+
+    @Test
+    fun indicatorUpdateReturnsConfirmedState() = runBlocking {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader(
+                    "Content-Type",
+                    "application/json"
+                )
+                .setBody(
+                    """
+                    {
+                      "success": true,
+                      "indicatorsEnabled": false
+                    }
+                    """.trimIndent()
+                )
+        )
+
+        val result =
+            createApiClient()
+                .setIndicatorsEnabled(false)
+
+        assertEquals(
+            IndicatorApiResult.Success(
+                confirmedEnabled = false
+            ),
+            result
+        )
+
+        val request = server.takeRequest()
+
+        assertEquals(
+            "/api/indicators",
+            request.path
+        )
+        assertEquals("POST", request.method)
+        assertTrue(
+            request.body.readUtf8()
+                .contains("\"enabled\":false")
+        )
+    }
+
+    @Test
+    fun mismatchedIndicatorConfirmationIsRejected() = runBlocking {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader(
+                    "Content-Type",
+                    "application/json"
+                )
+                .setBody(
+                    """
+                    {
+                      "success": true,
+                      "indicatorsEnabled": true
+                    }
+                    """.trimIndent()
+                )
+        )
+
+        val result =
+            createApiClient()
+                .setIndicatorsEnabled(false)
+
+        assertTrue(
+            result is
+                IndicatorApiResult.InvalidResponse
+        )
+    }
+
+    @Test
+    fun delayedIndicatorResponseReturnsTimeout() = runBlocking {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader(
+                    "Content-Type",
+                    "application/json"
+                )
+                .setBody(
+                    """
+                    {
+                      "success": true,
+                      "indicatorsEnabled": true
+                    }
+                    """.trimIndent()
+                )
+                .setBodyDelay(
+                    2,
+                    TimeUnit.SECONDS
+                )
+        )
+
+        val timeoutClient =
+            OkHttpClient.Builder()
+                .connectTimeout(
+                    200,
+                    TimeUnit.MILLISECONDS
+                )
+                .readTimeout(
+                    200,
+                    TimeUnit.MILLISECONDS
+                )
+                .writeTimeout(
+                    200,
+                    TimeUnit.MILLISECONDS
+                )
+                .build()
+
+        val result =
+            createApiClient(
+                okHttpClient = timeoutClient
+            ).setIndicatorsEnabled(true)
+
+        assertEquals(
+            IndicatorApiResult.Timeout,
+            result
         )
     }
 

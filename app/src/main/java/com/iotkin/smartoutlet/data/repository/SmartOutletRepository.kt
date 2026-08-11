@@ -2,6 +2,7 @@ package com.iotkin.smartoutlet.data.repository
 
 import com.iotkin.smartoutlet.data.model.DeviceAddress
 import com.iotkin.smartoutlet.data.network.DeviceStatusResult
+import com.iotkin.smartoutlet.data.network.IndicatorApiResult
 import com.iotkin.smartoutlet.data.network.SmartOutletNetworkFactory
 import com.iotkin.smartoutlet.data.settings.AppSettings
 import com.iotkin.smartoutlet.data.settings.DeviceSettingsStore
@@ -612,6 +613,110 @@ class SmartOutletRepository(
         }
     }
 
+    suspend fun setIndicatorsEnabled(
+        enabled: Boolean
+    ): IndicatorUpdateResult {
+        if (!writeRequestMutex.tryLock()) {
+            return IndicatorUpdateResult
+                .SkippedAlreadyRunning
+        }
+
+        try {
+            val currentState =
+                _statusState.value
+
+            if (
+                currentState.connectionState !=
+                DeviceConnectionState.ONLINE ||
+                currentState.isStale
+            ) {
+                return IndicatorUpdateResult
+                    .DeviceUnavailable
+            }
+
+            if (
+                currentState.status
+                    ?.apiVersion
+                    ?.let { it < INDICATOR_API_VERSION }
+                    ?: true
+            ) {
+                return IndicatorUpdateResult
+                    .UnsupportedFirmware
+            }
+
+            val address =
+                resolveSavedAddress()
+                    ?: return IndicatorUpdateResult
+                        .NoSavedDevice
+
+            val result =
+                networkFactory
+                    .createClient(address)
+                    .setIndicatorsEnabled(
+                        enabled = enabled
+                    )
+
+            return when (result) {
+                is IndicatorApiResult.Success -> {
+                    val refreshOutcome =
+                        refreshStatus(
+                            reason =
+                                StatusRefreshReason
+                                    .AFTER_ACTION
+                        )
+
+                    when (refreshOutcome) {
+                        StatusRefreshOutcome.SUCCESS -> {
+                            IndicatorUpdateResult.Success(
+                                confirmedEnabled =
+                                    result.confirmedEnabled
+                            )
+                        }
+
+                        else -> {
+                            IndicatorUpdateResult
+                                .ConfirmedButRefreshFailed(
+                                    confirmedEnabled =
+                                        result.confirmedEnabled,
+                                    message =
+                                        _statusState.value
+                                            .errorMessage
+                                            ?: "The indicator setting was saved, but the latest device status could not be loaded."
+                                )
+                        }
+                    }
+                }
+
+                IndicatorApiResult.Timeout -> {
+                    IndicatorUpdateResult.Failed(
+                        message =
+                            "The indicator request timed out. Check device status before trying again."
+                    )
+                }
+
+                is IndicatorApiResult.HttpError -> {
+                    IndicatorUpdateResult.Failed(
+                        message = result.message
+                    )
+                }
+
+                is IndicatorApiResult.InvalidResponse -> {
+                    IndicatorUpdateResult.Failed(
+                        message = result.message
+                    )
+                }
+
+                is IndicatorApiResult.NetworkError -> {
+                    IndicatorUpdateResult.Failed(
+                        message = result.message
+                    )
+                }
+            }
+        } finally {
+            writeRequestMutex.unlock()
+        }
+    }
+
     private fun observePollingInterval() {
         scope.launch {
             settingsStore.appSettings
@@ -731,6 +836,8 @@ class SmartOutletRepository(
     }
 
     companion object {
+        private const val INDICATOR_API_VERSION = 2
+
         private const val FIRST_RETRY_MILLISECONDS =
             2_000L
 

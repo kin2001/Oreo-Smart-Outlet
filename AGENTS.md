@@ -9,8 +9,8 @@ The related folders are:
 - Android app: `D:\smart_outlet\Oreo Smart Outlet`
 - ESP8266 firmware: `D:\smart_outlet\smart_outlet101`
 - Stitch reference design: `D:\smart_outlet\stitch_smart_outlet_controller`
-- Task tracker: `D:\smart_outlet\OREO_SMART_OUTLET_TASKS_V1_1.md`
-- App plan: `D:\smart_outlet\OREO_SMART_OUTLET_APP_PLAN_V1_1.md`
+- Task tracker: `D:\smart_outlet\OREO_SMART_OUTLET_SYSTEM_TASKS_V1_2.md`
+- App plan: `D:\smart_outlet\OREO_SMART_OUTLET_SYSTEM_PLAN_V1_2.md`
 
 ## Sources of Truth
 

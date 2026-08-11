@@ -40,9 +40,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.iotkin.smartoutlet.data.model.DeviceAddress
+import com.iotkin.smartoutlet.data.repository.DeviceConnectionState
+import com.iotkin.smartoutlet.data.repository.DeviceStatusRepositoryState
 import com.iotkin.smartoutlet.data.settings.AppSettings
 import com.iotkin.smartoutlet.data.settings.AppThemePreference
 import com.iotkin.smartoutlet.data.settings.TimeFormatPreference
+import com.iotkin.smartoutlet.ui.screens.diagnostics.DiagnosticsViewModel
 import com.iotkin.smartoutlet.ui.theme.OreoShapeTokens
 import com.iotkin.smartoutlet.ui.theme.OreoSmartOutletTheme
 import com.iotkin.smartoutlet.ui.theme.OreoSpacing
@@ -59,10 +62,13 @@ private enum class SettingsDialog {
 fun SettingsRoute(
     onManageDevice: () -> Unit,
     onAbout: () -> Unit,
+    deviceViewModel: DiagnosticsViewModel,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = viewModel()
 ) {
     val state by viewModel.uiState
+        .collectAsStateWithLifecycle()
+    val deviceState by deviceViewModel.uiState
         .collectAsStateWithLifecycle()
 
     SettingsScreen(
@@ -82,6 +88,16 @@ fun SettingsRoute(
         onResetSettings =
             viewModel::resetAppSettings,
         onAbout = onAbout,
+        deviceStatusState =
+            deviceState.repositoryState,
+        isUpdatingIndicators =
+            deviceState.isUpdatingIndicators,
+        indicatorMessage =
+            deviceState.indicatorMessage,
+        indicatorError =
+            deviceState.indicatorError,
+        onIndicatorLightsChange =
+            deviceViewModel::setIndicatorsEnabled,
         modifier = modifier
     )
 }
@@ -101,11 +117,30 @@ fun SettingsScreen(
     onManageDevice: () -> Unit,
     onResetSettings: () -> Unit,
     onAbout: () -> Unit,
+    deviceStatusState: DeviceStatusRepositoryState =
+        DeviceStatusRepositoryState(),
+    isUpdatingIndicators: Boolean = false,
+    indicatorMessage: String? = null,
+    indicatorError: String? = null,
+    onIndicatorLightsChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var openDialog by rememberSaveable {
         mutableStateOf<SettingsDialog?>(null)
     }
+    val indicatorControlEnabled =
+        isIndicatorControlEnabled(
+            state = deviceStatusState,
+            isUpdating = isUpdatingIndicators
+        )
+    val indicatorChecked =
+        deviceStatusState.status
+            ?.takeIf {
+                it.apiVersion >=
+                    INDICATOR_API_VERSION
+            }
+            ?.indicatorsEnabled
+            ?: false
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -149,6 +184,23 @@ fun SettingsScreen(
                         state.savedAddress
                             ?.displayAddress
                             ?: "No device saved"
+                )
+
+                SettingsDivider()
+
+                SettingsSwitchRow(
+                    title = "Indicator lights",
+                    supportingText =
+                        indicatorSupportingText(
+                            state = deviceStatusState,
+                            isUpdating =
+                                isUpdatingIndicators
+                        ),
+                    checked = indicatorChecked,
+                    enabled =
+                        indicatorControlEnabled,
+                    onCheckedChange =
+                        onIndicatorLightsChange
                 )
 
                 SettingsDivider()
@@ -274,7 +326,10 @@ fun SettingsScreen(
         }
 
         val feedback =
-            state.error ?: state.message
+            indicatorError
+                ?: indicatorMessage
+                ?: state.error
+                ?: state.message
 
         feedback?.let { message ->
             item {
@@ -284,7 +339,10 @@ fun SettingsScreen(
                         MaterialTheme.typography
                             .bodyMedium,
                     color =
-                        if (state.error != null) {
+                        if (
+                            indicatorError != null ||
+                            state.error != null
+                        ) {
                             MaterialTheme
                                 .colorScheme.error
                         } else {
@@ -603,6 +661,7 @@ private fun SettingsSwitchRow(
     title: String,
     supportingText: String,
     checked: Boolean,
+    enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
@@ -611,6 +670,7 @@ private fun SettingsSwitchRow(
                 .fillMaxWidth()
                 .toggleable(
                     value = checked,
+                    enabled = enabled,
                     role = Role.Switch,
                     onValueChange =
                         onCheckedChange
@@ -637,10 +697,48 @@ private fun SettingsSwitchRow(
 
         Switch(
             checked = checked,
+            enabled = enabled,
             onCheckedChange = null
         )
     }
 }
+
+private const val INDICATOR_API_VERSION = 2
+
+internal fun isIndicatorControlEnabled(
+    state: DeviceStatusRepositoryState,
+    isUpdating: Boolean
+): Boolean =
+    !isUpdating &&
+        state.connectionState ==
+            DeviceConnectionState.ONLINE &&
+        !state.isStale &&
+        (state.status?.apiVersion ?: 0) >=
+            INDICATOR_API_VERSION
+
+internal fun indicatorSupportingText(
+    state: DeviceStatusRepositoryState,
+    isUpdating: Boolean
+): String =
+    when {
+        isUpdating ->
+            "Updating the outlet lights..."
+
+        state.status == null ->
+            "Connect to the outlet to manage its lights."
+
+        state.status.apiVersion <
+            INDICATOR_API_VERSION ->
+            "Firmware 1.1.0 or newer is required."
+
+        state.connectionState !=
+            DeviceConnectionState.ONLINE ||
+            state.isStale ->
+            "The outlet must be online to change this setting."
+
+        else ->
+            "Show Wi-Fi and outlet status lights."
+    }
 
 @Composable
 private fun SettingsRowText(

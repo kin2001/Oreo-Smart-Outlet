@@ -357,6 +357,8 @@ private fun MainAppNavHost(
                 SettingsRoute(
                     onManageDevice =
                         onManageDevice,
+                    deviceViewModel =
+                        diagnosticsViewModel,
                     onAbout = {
                         navController.navigate(
                             MainRoutes.ABOUT

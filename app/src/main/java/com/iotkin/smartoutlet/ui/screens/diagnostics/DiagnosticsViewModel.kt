@@ -9,6 +9,7 @@ import com.iotkin.smartoutlet.data.network.NetworkConnectivityMonitor
 import com.iotkin.smartoutlet.data.network.SmartOutletNetworkFactory
 import com.iotkin.smartoutlet.data.repository.DeviceConnectionState
 import com.iotkin.smartoutlet.data.repository.DeviceStatusRepositoryState
+import com.iotkin.smartoutlet.data.repository.IndicatorUpdateResult
 import com.iotkin.smartoutlet.data.repository.RelayCommandResult
 import com.iotkin.smartoutlet.data.repository.SmartOutletRepository
 import com.iotkin.smartoutlet.data.repository.StatusRefreshOutcome
@@ -35,6 +36,9 @@ data class DiagnosticsUiState(
         DeviceStatusRepositoryState(),
     val isRunningStatusAction: Boolean = false,
     val isRequestingTimeSync: Boolean = false,
+    val isUpdatingIndicators: Boolean = false,
+    val indicatorMessage: String? = null,
+    val indicatorError: String? = null,
     val actionMessage: String? = null,
     val actionError: String? = null
 )
@@ -42,6 +46,9 @@ data class DiagnosticsUiState(
 private data class DiagnosticsActionState(
     val isRunningStatusAction: Boolean = false,
     val isRequestingTimeSync: Boolean = false,
+    val isUpdatingIndicators: Boolean = false,
+    val indicatorMessage: String? = null,
+    val indicatorError: String? = null,
     val message: String? = null,
     val error: String? = null
 )
@@ -107,7 +114,9 @@ class DiagnosticsViewModel(
                 _relayControlState.value
                     .isAnyRelayUpdating ||
                         actionState.value
-                            .isRequestingTimeSync
+                            .isRequestingTimeSync ||
+                        actionState.value
+                            .isUpdatingIndicators
             }
         )
     val relayControlState:
@@ -130,6 +139,15 @@ class DiagnosticsViewModel(
                 isRequestingTimeSync =
                     currentActionState
                         .isRequestingTimeSync,
+                isUpdatingIndicators =
+                    currentActionState
+                        .isUpdatingIndicators,
+                indicatorMessage =
+                    currentActionState
+                        .indicatorMessage,
+                indicatorError =
+                    currentActionState
+                        .indicatorError,
                 actionMessage =
                     currentActionState.message,
                 actionError =
@@ -178,6 +196,8 @@ class DiagnosticsViewModel(
         if (
             actionState.value
                 .isRequestingTimeSync ||
+            actionState.value
+                .isUpdatingIndicators ||
             _relayControlState.value
                 .isAnyRelayUpdating ||
             scheduleEditorState.value
@@ -278,6 +298,8 @@ class DiagnosticsViewModel(
                 .isAnyRelayUpdating ||
             actionState.value
                 .isRequestingTimeSync ||
+            actionState.value
+                .isUpdatingIndicators ||
             scheduleEditorState.value
                 .isSaving
         ) {
@@ -374,6 +396,8 @@ class DiagnosticsViewModel(
     fun clearActionFeedback() {
         actionState.update {
             it.copy(
+                indicatorMessage = null,
+                indicatorError = null,
                 message = null,
                 error = null
             )
@@ -452,6 +476,111 @@ class DiagnosticsViewModel(
                 message = null,
                 error = null
             )
+        }
+    }
+
+    fun setIndicatorsEnabled(
+        enabled: Boolean
+    ) {
+        if (
+            actionState.value
+                .isUpdatingIndicators ||
+            actionState.value
+                .isRequestingTimeSync ||
+            _relayControlState.value
+                .isAnyRelayUpdating ||
+            scheduleEditorState.value
+                .isSaving
+        ) {
+            return
+        }
+
+        actionState.update {
+            it.copy(
+                isUpdatingIndicators = true,
+                indicatorMessage = null,
+                indicatorError = null
+            )
+        }
+
+        viewModelScope.launch {
+            val result =
+                repository.setIndicatorsEnabled(
+                    enabled = enabled
+                )
+
+            actionState.update { currentState ->
+                when (result) {
+                    is IndicatorUpdateResult.Success -> {
+                        currentState.copy(
+                            isUpdatingIndicators = false,
+                            indicatorMessage =
+                                if (
+                                    result.confirmedEnabled
+                                ) {
+                                    "Indicator lights enabled."
+                                } else {
+                                    "Indicator lights disabled."
+                                },
+                            indicatorError = null
+                        )
+                    }
+
+                    is IndicatorUpdateResult
+                    .ConfirmedButRefreshFailed -> {
+                        currentState.copy(
+                            isUpdatingIndicators = false,
+                            indicatorMessage = null,
+                            indicatorError = result.message
+                        )
+                    }
+
+                    IndicatorUpdateResult.NoSavedDevice -> {
+                        currentState.copy(
+                            isUpdatingIndicators = false,
+                            indicatorMessage = null,
+                            indicatorError =
+                                "No smart outlet address is saved."
+                        )
+                    }
+
+                    IndicatorUpdateResult.DeviceUnavailable -> {
+                        currentState.copy(
+                            isUpdatingIndicators = false,
+                            indicatorMessage = null,
+                            indicatorError =
+                                "Indicator lights can be changed only while the outlet is online."
+                        )
+                    }
+
+                    IndicatorUpdateResult.UnsupportedFirmware -> {
+                        currentState.copy(
+                            isUpdatingIndicators = false,
+                            indicatorMessage = null,
+                            indicatorError =
+                                "Firmware 1.1.0 or later is required to manage indicator lights."
+                        )
+                    }
+
+                    IndicatorUpdateResult
+                    .SkippedAlreadyRunning -> {
+                        currentState.copy(
+                            isUpdatingIndicators = false,
+                            indicatorMessage = null,
+                            indicatorError =
+                                "Another device action is already running."
+                        )
+                    }
+
+                    is IndicatorUpdateResult.Failed -> {
+                        currentState.copy(
+                            isUpdatingIndicators = false,
+                            indicatorMessage = null,
+                            indicatorError = result.message
+                        )
+                    }
+                }
+            }
         }
     }
 

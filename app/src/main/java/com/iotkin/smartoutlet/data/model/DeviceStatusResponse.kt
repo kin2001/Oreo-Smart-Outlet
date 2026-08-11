@@ -16,6 +16,7 @@ data class DeviceStatusResponse(
     val otaReady: Boolean,
     val apiActive: Boolean,
     val online: Boolean,
+    val indicatorsEnabled: Boolean = true,
     val apiPort: Int,
     val ip: String,
     val ssid: String,

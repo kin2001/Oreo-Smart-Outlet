@@ -1,6 +1,8 @@
 package com.iotkin.smartoutlet.data.network
 
 import com.iotkin.smartoutlet.data.model.DeviceStatusResponse
+import com.iotkin.smartoutlet.data.model.IndicatorSettingsRequest
+import com.iotkin.smartoutlet.data.model.IndicatorSettingsResponse
 import com.iotkin.smartoutlet.data.model.RelayCommandRequest
 import com.iotkin.smartoutlet.data.model.RelayCommandResponse
 import com.iotkin.smartoutlet.data.model.ScheduleUpdateRequest
@@ -20,6 +22,11 @@ interface SmartOutletApiService {
     @POST("api/time/sync")
     suspend fun requestTimeSync():
             Response<TimeSyncResponse>
+
+    @POST("api/indicators")
+    suspend fun setIndicatorsEnabled(
+        @Body request: IndicatorSettingsRequest
+    ): Response<IndicatorSettingsResponse>
 
     @POST("api/relay/1")
     suspend fun setRelay1(
